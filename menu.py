@@ -112,20 +112,18 @@ def show_menu():
     center(f"  {R}██{O}██{Y}██{G}██{C}██{B}██{M}██{NC}  {WHT}IDA UDPHysteria{NC}  {R}██{O}██{Y}██{G}██{C}██{B}██{M}██{NC}")
     center(f"{D}🚀 ระบบจัดการ Hysteria v1{NC}")
     bsep()
-    # ── Server info — align 3 คอลัมน์ให้ตรง ──
+    # ── Server info — vertical list, labels aligned ──
     u = get_uptime()
-    cols1 = [
-        sec("📡IP:", ip, 17),
-        sec("🔌PORT:", p, 13),
-        sec("🔑AUTH:", a, 14),
+    LW = 10  # label width for alignment
+    info = [
+        ("📡 IP", ip),
+        ("🔌 PORT", f"{p} (20000-50000)"),
+        ("🔑 AUTH", a if a else "-"),
+        ("🔏 OBFS", o if o else "-"),
+        ("📊 STATUS", f"{stt}  👥{on}  ⏱{u}"),
     ]
-    cols2 = [
-        sec("🔏OBFS:", o, 17),
-        sec("📊✅:", stt, 13),
-        sec("👥"+str(on)+" ⏱", u, 14),
-    ]
-    bput("  ".join(cols1))
-    bput("  ".join(cols2))
+    for label, val in info:
+        bput(f"{D}{pad(label, LW)}{NC} : {WHT}{val}{NC}")
 
     # ── Color bar ──
     bput(f"  {R}▌{NC}{O}▌{NC}{Y}▌{NC}{G}▌{NC}{C}▌{NC}{B}▌{NC}{M}▌{NC}")
