@@ -107,6 +107,7 @@
     }
 
     async function loadAll(){
+      // Online Summary
       try{const a=await j('./online_app.json');lastOnline=Array.isArray(a)?a[0]:a}catch(e){}
       if(lastOnline){
         document.getElementById('row-online').innerHTML=
@@ -119,12 +120,14 @@
            <td class="warn">${lastOnline.agnudp}</td>`;
       }
 
+      // System Info
       try{const s=await j('./sysinfo.json');lastSys=Array.isArray(s)?s[0]:s}catch(e){}
       if(lastSys){
         document.getElementById('sys').innerText=
           `⏱ Uptime: ${lastSys.uptime}\n🖥 CPU: ${lastSys.cpu_usage}\n🧠 RAM: ${lastSys.ram_usage}\n💾 Disk: ${lastSys.disk_usage}`;
       }
 
+      // Traffic Info
       try{const n=await j('./netinfo.json');lastTraffic=Array.isArray(n)?n[0]:n}catch(e){}
       if(lastTraffic){
         const d=lastTraffic;
