@@ -27,13 +27,16 @@ YELLOW='\033[1;33m'; BLUE='\033[0;34m'; MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'; WHITE='\033[1;37m'; BOLD='\033[1m'
 DIM='\033[2m'; NC='\033[0m'
 
-# ════════════ จัดตำแหน่ง (ใช้ wc -m นับตัวอักษรจริง) ════════════
+# ════════════ จัดตำแหน่งแม่นยำ (Python: ไม่นับตัวควบ ◌ิ◌์) ════════════
+vislen() {
+    echo -n "$1" | python3 -c "import sys, unicodedata; print(sum(1 for c in sys.stdin.read() if unicodedata.category(c) != 'Mn'))" 2>/dev/null
+}
 pad() {
-    local str="$1" width="$2"
-    local len; len=$(echo -n "$str" | wc -m)
-    printf "%s" "$str"
-    if [ "$len" -lt "$width" ]; then
-        printf "%*s" $((width - len)) ""
+    local s="$1" w="$2"
+    local n; n=$(vislen "$s")
+    printf "%s" "$s"
+    if [ "${n:-0}" -lt "$w" ]; then
+        printf "%*s" $((w - n)) ""
     fi
 }
 
