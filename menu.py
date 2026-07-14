@@ -39,6 +39,10 @@ def vislen(s):
         return w
 def pad(s, w):
     return s + ' ' * max(0, w - vislen(s))
+def sec(label, value, w):
+    """Section label+value padded to width w"""
+    t = f"{label}{WHT}{value}{NC}"
+    return t + ' ' * max(0, w - vislen(t))
 def box():
     print(f"  {B}╔{H*(W-2)}╗{NC}")
 def bot():
@@ -72,18 +76,16 @@ def get_status():
     try: return subprocess.run(["systemctl","is-active","hysteria"], capture_output=True,text=True,timeout=3).stdout.strip()
     except: return "inactive"
 def get_uptime():
-    # สั้นมาก: "1d 10h" หรือ "07-14 05:06"
+    # สั้นมากไม่เว้นวรรค: "1d10h" , "11h3m", "5m" (max 5-6 chars)
     try:
         up = subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ","")
-        # "1 day, 10 hours, 4 minutes" → "1d 10h"
         d = re.search(r"(\d+)\s*day", up)
         h = re.search(r"(\d+)\s*hour", up)
         m = re.search(r"(\d+)\s*minute", up)
-        parts = []
-        if d: parts.append(f"{d.group(1)}d")
-        if h: parts.append(f"{h.group(1)}h")
-        if m: parts.append(f"{m.group(1)}m")
-        if parts: return " ".join(parts)
+        if d and h: return f"{d.group(1)}d{h.group(1)}h"
+        if d: return f"{d.group(1)}d"
+        if h: return f"{h.group(1)}h{m.group(1)}m" if m else f"{h.group(1)}h"
+        if m: return f"{m.group(1)}m"
     except: pass
     try:
         r = subprocess.run(["systemctl","status","hysteria","--no-pager"], capture_output=True,text=True,timeout=3)
@@ -102,7 +104,7 @@ def count_online():
 
 # ══ Menu Screen ══
 def show_menu():
-    p, a, o = read_config(); ip = get_ip(); st = get_status(); up = get_uptime(); on = count_online()
+    p, a, o = read_config(); ip = get_ip(); st = get_status(); on = count_online()
     si = f"{G}✅{NC}" if st=="active" else f"{R}❌{NC}"; stt = f"{G}ONLINE{NC}" if st=="active" else f"{R}OFFLINE{NC}"
     os.system("clear")
     print()
@@ -110,11 +112,20 @@ def show_menu():
     center(f"  {R}██{O}██{Y}██{G}██{C}██{B}██{M}██{NC}  {WHT}IDA UDPHysteria{NC}  {R}██{O}██{Y}██{G}██{C}██{B}██{M}██{NC}")
     center(f"{D}🚀 ระบบจัดการ Hysteria v1{NC}")
     bsep()
-    # ── Server info (2 แถวกระชับ) ──
-    r1 = f"📡 IP:{WHT}{ip}{NC}  🔌 PORT:{WHT}{p}{NC}  🔑 AUTH:{WHT}{a}{NC}"
-    r2 = f"🔏 OBFS:{WHT}{o}{NC}  📊 {si} {D}|{NC} {stt}  👥 {WHT}{on}{NC}  ⏱ {D}{up}{NC}"
-    bput(r1)
-    bput(r2)
+    # ── Server info — align 3 คอลัมน์ให้ตรง ──
+    u = get_uptime()
+    cols1 = [
+        sec("📡IP:", ip, 17),
+        sec("🔌PORT:", p, 13),
+        sec("🔑AUTH:", a, 14),
+    ]
+    cols2 = [
+        sec("🔏OBFS:", o, 17),
+        sec("📊✅:", stt, 13),
+        sec("👥"+str(on)+" ⏱", u, 14),
+    ]
+    bput("  ".join(cols1))
+    bput("  ".join(cols2))
 
     # ── Color bar ──
     bput(f"  {R}▌{NC}{O}▌{NC}{Y}▌{NC}{G}▌{NC}{C}▌{NC}{B}▌{NC}{M}▌{NC}")
