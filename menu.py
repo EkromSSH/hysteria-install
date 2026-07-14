@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""IDA UDPHysteria Manager v3.3 — Clean English Menu"""
-import os, subprocess, re, unicodedata, json, socket, time
+"""IDA UDPHysteria Manager v3.4 — English Menu + Web Dashboard"""
+import os, subprocess, re, unicodedata, json, socket, time, sys
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+from threading import Thread
 
 # ══ Config ══
 HYST_CONFIG = "/opt/hysteria/config-v1.json"
+WEB_DIR = "/opt/hysteria/web"
+WEB_PORT = 82
 
 # ══ Colors ══
 R = '\033[0;31m'; G = '\033[0;32m'; O = '\033[0;33m'
@@ -62,7 +66,7 @@ def read_config():
         return port, d.get("auth_str", ""), d.get("obfs", "")
     except: return "25000", "", ""
 def get_ip():
-    try: return subprocess.check_output("curl -s ifconfig.me", shell=True, timeout=3).decode().strip()
+    try: return subprocess.check_output("curl -s --connect-timeout 3 ifconfig.me", shell=True, timeout=5).decode().strip()
     except: return "N/A"
 def get_status():
     try: return subprocess.run(["systemctl","is-active","hysteria"], capture_output=True,text=True,timeout=3).stdout.strip()
@@ -79,17 +83,7 @@ def get_uptime():
         if m: return f"{m.group(1)}m"
     except: pass
     return ""
-def _get_ips_from_logs():
-    ips = {}
-    try:
-        r = subprocess.run(["journalctl","-u","hysteria","--no-pager","--since","5 min ago"],
-                          capture_output=True,text=True,timeout=5)
-        for m in re.finditer(r'\[src:(\d+\.\d+\.\d+\.\d+):\d+\]', r.stdout):
-            ips[m.group(1)] = ips.get(m.group(1), 0) + 1
-    except: pass
-    return ips
 def _get_ips_from_conntrack(port):
-    """Use conntrack to detect online users (like ShowOn)"""
     ips = {}
     try:
         r = subprocess.run(f"conntrack -L -p udp 2>/dev/null | grep -F 'dport={port}'",
@@ -100,28 +94,177 @@ def _get_ips_from_conntrack(port):
                 ips[ip] = ips.get(ip, 0) + 1
     except: pass
     return ips
-def _get_ips_from_tcpdump(port, secs=8):
+def _get_ips_from_logs():
     ips = {}
     try:
-        r = subprocess.run(f"timeout {secs} tcpdump -i any -c 50 -n udp port {port} 2>/dev/null",
-                          shell=True, capture_output=True,text=True,timeout=secs+3)
-        my = get_ip()
-        for m in re.finditer(r'(\d+\.\d+\.\d+\.\d+)', r.stdout):
-            ip = m.group(1)
-            if ip != my and not ip.startswith("127.") and ip != "0.0.0.0":
-                ips[ip] = ips.get(ip, 0) + 1
+        r = subprocess.run(["journalctl","-u","hysteria","--no-pager","--since","5 min ago"],
+                          capture_output=True,text=True,timeout=5)
+        for m in re.finditer(r'\[src:(\d+\.\d+\.\d+\.\d+):\d+\]', r.stdout):
+            ips[m.group(1)] = ips.get(m.group(1), 0) + 1
     except: pass
     return ips
 def count_online():
-    """Count using conntrack (most accurate, like ShowOn)"""
     p, _, _ = read_config()
     return len(_get_ips_from_conntrack(p))
+
+# ══ Web Dashboard ══
+def get_dashboard_data():
+    p, a, o = read_config()
+    ip = get_ip()
+    st = get_status()
+    ct_ips = _get_ips_from_conntrack(p)
+    log_ips = _get_ips_from_logs()
+    all_ips = {}
+    for src, ips in [("conntrack", ct_ips), ("log", log_ips)]:
+        for ip_addr, cnt in ips.items():
+            if ip_addr not in all_ips: all_ips[ip_addr] = {"conntrack": 0, "log": 0}
+            all_ips[ip_addr][src] = cnt
+    return {
+        "server_ip": ip,
+        "port": p,
+        "auth": a,
+        "obfs": o,
+        "status": st,
+        "uptime": get_uptime(),
+        "online_users": len(all_ips),
+        "users_list": [{"ip": ip, "conntrack": v["conntrack"], "log": v["log"]} for ip, v in all_ips.items()]
+    }
+
+DASHBOARD_HTML = '''<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>IDA UDPHysteria Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:1200px;margin:0 auto;padding:20px}
+h1{font-size:1.8rem;margin-bottom:20px;text-align:center}
+h2{font-size:1.2rem;margin-bottom:10px;color:#58a6ff}
+.muted{color:#8b949e}
+.grid{display:grid;gap:20px;margin-bottom:20px}
+@media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;box-shadow:0 2px 4px rgba(0,0,0,.3)}
+.card h3{color:#58a6ff;margin-bottom:12px;font-size:1.1rem}
+.stat{font-size:2rem;font-weight:bold;color:#3fb950}
+.stat-label{color:#8b949e;font-size:.9rem}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.95rem}
+th,td{padding:10px;text-align:left}
+th{background:#1f242c;color:#c9d1d9;font-weight:600}
+tr:nth-child(even){background:#1a1f27}
+tr:nth-child(odd){background:#161b22}
+.ok{color:#3fb950;font-weight:600}
+.err{color:#f85149;font-weight:600}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:600}
+.badge-ok{background:#238636;color:#fff}
+.badge-err{background:#da3633;color:#fff}
+.rainbow{height:4px;background:linear-gradient(90deg,#f85149,#d29922,#3fb950,#58a6ff,#bc8cff);border-radius:2px;margin-bottom:20px}
+.refresh{background:#238636;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.9rem}
+.refresh:hover{background:#2ea043}
+#auto-refresh{margin-left:10px}
+footer{text-align:center;color:#8b949e;margin-top:20px;font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="rainbow"></div>
+<h1>&#x1F680; IDA UDPHysteria Dashboard</h1>
+<div class="grid">
+<div class="card">
+<h3>&#x1F4CA; Server Status</h3>
+<table>
+<tr><td class="muted">Server IP</td><td id="ip">Loading...</td></tr>
+<tr><td class="muted">Port</td><td id="port">-</td></tr>
+<tr><td class="muted">Auth</td><td id="auth">-</td></tr>
+<tr><td class="muted">Obfs</td><td id="obfs">-</td></tr>
+<tr><td class="muted">Status</td><td id="status">-</td></tr>
+<tr><td class="muted">Uptime</td><td id="uptime">-</td></tr>
+</table>
+</div>
+<div class="card">
+<h3>&#x1F465; Online Users</h3>
+<div style="text-align:center;padding:20px">
+<div class="stat" id="users-count">0</div>
+<div class="stat-label">Connected Users</div>
+</div>
+</div>
+</div>
+<div class="card">
+<h3>&#x1F4CA; User List</h3>
+<table>
+<thead><tr><th>#</th><th>IP Address</th><th>Conntrack</th><th>Logs</th></tr></thead>
+<tbody id="users-table"><tr><td colspan="4" class="muted">Loading...</td></tr></tbody>
+</table>
+</div>
+<div style="text-align:center;margin-top:20px">
+<button class="refresh" onclick="fetchData()">&#x1F504; Refresh</button>
+<label id="auto-refresh"><input type="checkbox" checked onchange="toggleAuto()"> Auto-refresh (10s)</label>
+</div>
+<footer>IDA UDPHysteria v3.4 &mdash; Powered by conntrack</footer>
+<script>
+let auto=true;let timer;
+function toggleAuto(){auto=document.querySelector("#auto-refresh input").checked;if(auto)startTimer();else clearInterval(timer)}
+function startTimer(){clearInterval(timer);timer=setInterval(fetchData,10000)}
+async function fetchData(){
+try{const r=await fetch("/api/status");const d=await r.json();
+document.getElementById("ip").textContent=d.server_ip;
+document.getElementById("port").textContent=d.port;
+document.getElementById("auth").textContent=d.auth||"-";
+document.getElementById("obfs").textContent=d.obfs||"-";
+document.getElementById("status").innerHTML=d.status=="active"?'<span class="badge badge-ok">ONLINE</span>':'<span class="badge badge-err">OFFLINE</span>';
+document.getElementById("uptime").textContent=d.uptime||"-";
+document.getElementById("users-count").textContent=d.online_users;
+const tb=document.getElementById("users-table");
+if(d.users_list.length>0){tb.innerHTML=d.users_list.map((u,i)=>"<tr><td>"+(i+1)+"</td><td>"+u.ip+"</td><td>"+u.conntrack+"</td><td>"+u.log+"</td></tr>").join("")}
+else{tb.innerHTML='<tr><td colspan="4" class="muted">No users online</td></tr>'}
+}catch(e){console.error(e)}}
+fetchData();startTimer();
+</script>
+</body>
+</html>'''
+
+class DashboardHandler(SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/" or self.path == "/index.html":
+            self.send_response(200)
+            self.send_header("Content-type", "text/html")
+            self.end_headers()
+            self.wfile.write(DASHBOARD_HTML.encode())
+        elif self.path == "/api/status":
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            data = get_dashboard_data()
+            self.wfile.write(json.dumps(data).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+    def log_message(self, format, *args):
+        pass  # Suppress logs
+
+def start_web_server():
+    os.makedirs(WEB_DIR, exist_ok=True)
+    with open(f"{WEB_DIR}/index.html", "w") as f:
+        f.write(DASHBOARD_HTML)
+    try:
+        server = HTTPServer(("0.0.0.0", WEB_PORT), DashboardHandler)
+        server.serve_forever()
+    except OSError:
+        pass
+
+def is_web_running():
+    try:
+        r = subprocess.run(f"curl -s --connect-timeout 2 http://127.0.0.1:{WEB_PORT}/api/status",
+                          shell=True, capture_output=True,text=True,timeout=3)
+        return "server_ip" in r.stdout
+    except: return False
 
 # ══ Menu Screen ══
 def show_menu():
     p, a, o = read_config(); ip = get_ip(); st = get_status(); on = count_online()
     u = get_uptime()
     stt = f"{G}ONLINE{NC}" if st=="active" else f"{R}OFFLINE{NC}"
+    web_st = f"{G}RUNNING{NC}" if is_web_running() else f"{R}STOPPED{NC}"
     os.system("clear")
     print()
     box()
@@ -135,6 +278,7 @@ def show_menu():
         ("Auth", a if a else "-"),
         ("Obfs", o if o else "-"),
         ("Status", f"{stt}  Users:{on}  Up:{u}"),
+        ("Web Panel", f"{web_st}  Port:{WEB_PORT}"),
     ]
     for label, val in info:
         bput(f"{D}{pad(label, LW)}{NC} : {WHT}{val}{NC}")
@@ -146,12 +290,13 @@ def show_menu():
     menu_row("03","⛔","Stop","09","🔧","Change Port")
     menu_row("04","▶","Start","10","👥","Online Users")
     menu_row("05","📜","View Logs","11","🌐","Speed Test")
-    menu_row("06","🔍","System Info","00","🚪","Exit")
+    menu_row("06","🔍","System Info","12","🖥️","Web Dashboard")
+    menu_row("00","🚪","Exit","","","")
     bput("")
     bsep()
     bot()
     print()
-    return input(f"  {Y}>>{NC} {BD}Choose{NC} {D}[00-11]{NC} : ").strip()
+    return input(f"  {Y}>>{NC} {BD}Choose{NC} {D}[00-12]{NC} : ").strip()
 
 # ══ Screens ══
 def show_info():
@@ -205,7 +350,6 @@ def sys_info():
     for cmd, label in [
         ("hostname -f","Hostname"), ("uname -r","Kernel"), ("uptime -p","Uptime"),
         ("free -h | awk '/Mem:/{print $3\"/\"$2}'","Memory"), ("df -h / | awk 'NR==2{print $3\"/\"$2}'","Disk"),
-        ("cat /etc/os-release 2>/dev/null | grep PRETTY|cut -d= -f2","OS"),
     ]:
         try:
             r = subprocess.run(cmd, shell=True, capture_output=True,text=True,timeout=3)
@@ -278,21 +422,15 @@ def check_online():
     print(f"\r", end="")
     p, _, _ = read_config()
     try:
-        # Method 1: conntrack (most accurate, like ShowOn)
         ct_ips = _get_ips_from_conntrack(p)
         bput(f"  {D}Conntrack:{NC} {WHT}{len(ct_ips)}{NC} user(s)")
-
-        # Method 2: Parse logs (last 5 min)
         log_ips = _get_ips_from_logs()
         bput(f"  {D}Logs (5 min):{NC} {WHT}{len(log_ips)}{NC} client(s)")
-
-        # Merge all sources
         all_ips = {}
         for src_name, ip_dict in [("CONNTRACK", ct_ips), ("LOG", log_ips)]:
             for ip, cnt in ip_dict.items():
                 if ip not in all_ips: all_ips[ip] = {"conntrack": 0, "log": 0}
                 all_ips[ip][src_name.lower()] = cnt
-
         bput("")
         bput(f"  {WHT}Total unique users: {len(all_ips)}{NC}")
         bput("")
@@ -324,9 +462,55 @@ def speed_test():
         bput(f"  {R}Test failed{NC}")
     bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
 
+def web_dashboard():
+    os.system("clear"); print(); box(); center(f"{C}🖥️{NC} {BD}Web Dashboard{NC}"); bsep()
+    ip = get_ip()
+    running = is_web_running()
+    if running:
+        bput(f"  {G}✅{NC} Web Dashboard is {G}RUNNING{NC}")
+        bput(f"  {D}Open: {WHT}http://{ip}:{WEB_PORT}{NC}")
+        bput("")
+        bput(f"  {Y}[1]{NC} Stop Web Server")
+        bput(f"  {Y}[2]{NC} Restart Web Server")
+        bput(f"  {Y}[0]{NC} Back")
+        ch = input(f"  {Y}>>{NC} Choose: ").strip()
+        if ch == "1":
+            subprocess.run(f"pkill -f 'python3.*hysteria-menu.py.*web'", shell=True, capture_output=True)
+            subprocess.run(f"pkill -f 'python3 -m http.server {WEB_PORT}'", shell=True, capture_output=True)
+            time.sleep(1)
+            bput(f"  {G}✅{NC} Web server stopped")
+            time.sleep(1.5)
+        elif ch == "2":
+            subprocess.run(f"pkill -f 'python3.*hysteria-menu.py.*web'", shell=True, capture_output=True)
+            subprocess.run(f"pkill -f 'python3 -m http.server {WEB_PORT}'", shell=True, capture_output=True)
+            time.sleep(1)
+            Thread(target=start_web_server, daemon=True).start()
+            time.sleep(2)
+            bput(f"  {G}✅{NC} Web server restarted")
+            time.sleep(1.5)
+    else:
+        bput(f"  {R}❌{NC} Web Dashboard is {R}STOPPED{NC}")
+        bput("")
+        bput(f"  {Y}[1]{NC} Start Web Server")
+        bput(f"  {Y}[0]{NC} Back")
+        ch = input(f"  {Y}>>{NC} Choose: ").strip()
+        if ch == "1":
+            Thread(target=start_web_server, daemon=True).start()
+            time.sleep(2)
+            if is_web_running():
+                bput(f"  {G}✅{NC} Web server started!")
+                bput(f"  {D}Open: {WHT}http://{ip}:{WEB_PORT}{NC}")
+            else:
+                bput(f"  {R}❌{NC} Failed to start")
+            time.sleep(2)
+    bsep(); bot(); print()
+
 # ══ Main ══
 if __name__ == "__main__":
     os.system("chmod 600 " + HYST_CONFIG + " 2>/dev/null")
+    # Start web server in background if not running
+    if not is_web_running():
+        Thread(target=start_web_server, daemon=True).start()
     while True:
         try:
             ch = show_menu()
@@ -341,6 +525,7 @@ if __name__ == "__main__":
             elif ch == "09": change_port()
             elif ch == "10": check_online()
             elif ch == "11": speed_test()
+            elif ch == "12": web_dashboard()
             elif ch == "00":
                 os.system("clear"); print()
                 box(); center(f"{G}👋{NC} {BD}Thank You - IDA UDPHysteria{NC}"); bot()
