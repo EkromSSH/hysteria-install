@@ -88,6 +88,18 @@ def _get_ips_from_logs():
             ips[m.group(1)] = ips.get(m.group(1), 0) + 1
     except: pass
     return ips
+def _get_ips_from_conntrack(port):
+    """Use conntrack to detect online users (like ShowOn)"""
+    ips = {}
+    try:
+        r = subprocess.run(f"conntrack -L -p udp 2>/dev/null | grep -F 'dport={port}'",
+                          shell=True, capture_output=True,text=True,timeout=5)
+        for m in re.finditer(r'src=(\d+\.\d+\.\d+\.\d+)', r.stdout):
+            ip = m.group(1)
+            if not ip.startswith("127."):
+                ips[ip] = ips.get(ip, 0) + 1
+    except: pass
+    return ips
 def _get_ips_from_tcpdump(port, secs=8):
     ips = {}
     try:
@@ -101,7 +113,9 @@ def _get_ips_from_tcpdump(port, secs=8):
     except: pass
     return ips
 def count_online():
-    return len(_get_ips_from_logs())
+    """Count using conntrack (most accurate, like ShowOn)"""
+    p, _, _ = read_config()
+    return len(_get_ips_from_conntrack(p))
 
 # ══ Menu Screen ══
 def show_menu():
@@ -260,34 +274,38 @@ def change_port():
 
 def check_online():
     os.system("clear"); print(); box(); center(f"{M}👥{NC} {BD}Online Users{NC}"); bsep()
-    bput(f"{D}  Scanning: logs + 10s live capture...{NC}")
+    bput(f"{D}  Scanning: conntrack + logs...{NC}")
     print(f"\r", end="")
     p, _, _ = read_config()
     try:
+        # Method 1: conntrack (most accurate, like ShowOn)
+        ct_ips = _get_ips_from_conntrack(p)
+        bput(f"  {D}Conntrack:{NC} {WHT}{len(ct_ips)}{NC} user(s)")
+
+        # Method 2: Parse logs (last 5 min)
         log_ips = _get_ips_from_logs()
-        bput(f"  {D}From logs (5 min):{NC} {WHT}{len(log_ips)}{NC} client(s)")
-        bput(f"  {D}Capturing 10 sec traffic...{NC}")
-        traffic_ips = _get_ips_from_tcpdump(p, secs=10)
+        bput(f"  {D}Logs (5 min):{NC} {WHT}{len(log_ips)}{NC} client(s)")
+
+        # Merge all sources
         all_ips = {}
-        for src_name, ip_dict in [("LOG", log_ips), ("LIVE", traffic_ips)]:
+        for src_name, ip_dict in [("CONNTRACK", ct_ips), ("LOG", log_ips)]:
             for ip, cnt in ip_dict.items():
-                if ip not in all_ips: all_ips[ip] = {"log": 0, "live": 0}
+                if ip not in all_ips: all_ips[ip] = {"conntrack": 0, "log": 0}
                 all_ips[ip][src_name.lower()] = cnt
-        bput(f"  {D}From live traffic:{NC} {WHT}{len(traffic_ips)}{NC} client(s)")
+
         bput("")
         bput(f"  {WHT}Total unique users: {len(all_ips)}{NC}")
         bput("")
         if all_ips:
-            for i, (ip, info) in enumerate(sorted(all_ips.items(), key=lambda x: -(x[1]["log"]+x[1]["live"]))[:10], 1):
+            for i, (ip, info) in enumerate(sorted(all_ips.items(), key=lambda x: -(x[1]["conntrack"]+x[1]["log"]))[:10], 1):
                 try: h = socket.gethostbyaddr(ip)[0][:30]
                 except: h = "unknown"
                 src = []
+                if info["conntrack"]: src.append(f"CONN:{info['conntrack']}")
                 if info["log"]: src.append(f"LOG:{info['log']}")
-                if info["live"]: src.append(f"LIVE:{info['live']}")
                 bput(f"  {G}{i:2}.{NC} {WHT}{ip}{NC}  {D}{h}{NC}  {D}[{','.join(src)}]{NC}")
         else:
             bput(f"  {D}No active users detected{NC}")
-            bput(f"  {D}(idle/connected-but-no-traffic won't show){NC}")
     except Exception as e:
         bput(f"  {R}Error: {e}{NC}")
     bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
