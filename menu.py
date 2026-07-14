@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""IDA UDPHysteria Manager v3.4 — English Menu + Web Dashboard"""
+"""IDA UDPHysteria Manager v4.0 — All-in-One (ShowOn features merged)"""
 import os, subprocess, re, unicodedata, json, socket, time, sys
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
@@ -8,6 +8,7 @@ from threading import Thread
 HYST_CONFIG = "/opt/hysteria/config-v1.json"
 WEB_DIR = "/opt/hysteria/web"
 WEB_PORT = 82
+SWAP_FILE = "/swapfile"
 
 # ══ Colors ══
 R = '\033[0;31m'; G = '\033[0;32m'; O = '\033[0;33m'
@@ -15,8 +16,8 @@ Y = '\033[1;33m'; B = '\033[0;34m'; M = '\033[0;35m'
 C = '\033[0;36m'; WHT = '\033[1;37m'; BD = '\033[1m'
 D = '\033[2m'; NC = '\033[0m'
 
-# ══ Box (W=58) ══
-W = 58
+# ══ Box (W=60) ══
+W = 60
 H = '\u2550'
 def vislen(s):
     s2 = re.sub(r'\033\[[0-9;]*m', '', s)
@@ -56,78 +57,151 @@ def center(t):
 def menu_row(n1, i1, l1, n2, i2, l2):
     left = f"{G}[{n1}]{NC}  {i1}  {l1}"
     right = f"{G}[{n2}]{NC}  {i2}  {l2}"
-    bput(f"  {pad(left, 25)}  {pad(right, 21)}")
+    bput(f"  {pad(left, 27)}  {pad(right, 23)}")
 
-# ══ Data ══
+# ══ System Detection ══
+def get_ip():
+    try: return subprocess.check_output("curl -s --connect-timeout 3 ifconfig.me", shell=True, timeout=5).decode().strip()
+    except: return "N/A"
+def get_nic():
+    try:
+        r = subprocess.run("ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i==\"dev\") print $(i+1)}' | head -1",
+                          shell=True, capture_output=True,text=True,timeout=3)
+        return r.stdout.strip() or "eth0"
+    except: return "eth0"
 def read_config():
     try:
         with open(HYST_CONFIG) as f: d = json.load(f)
         port = d.get("listen", ":25000").split(":")[-1]
         return port, d.get("auth_str", ""), d.get("obfs", "")
     except: return "25000", "", ""
-def get_ip():
-    try: return subprocess.check_output("curl -s --connect-timeout 3 ifconfig.me", shell=True, timeout=5).decode().strip()
-    except: return "N/A"
 def get_status():
     try: return subprocess.run(["systemctl","is-active","hysteria"], capture_output=True,text=True,timeout=3).stdout.strip()
     except: return "inactive"
 def get_uptime():
     try:
-        up = subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ","")
-        d = re.search(r"(\d+)\s*day", up)
-        h = re.search(r"(\d+)\s*hour", up)
-        m = re.search(r"(\d+)\s*minute", up)
-        if d and h: return f"{d.group(1)}d{h.group(1)}h"
-        if d: return f"{d.group(1)}d"
-        if h: return f"{h.group(1)}h{m.group(1)}m" if m else f"{h.group(1)}h"
-        if m: return f"{m.group(1)}m"
+        r = subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3)
+        return r.stdout.strip().replace("up ", "")
+    except: return ""
+
+# ══ Online Detection (ShowOn-style) ══
+def count_ssh():
+    count = 0
+    try:
+        r = subprocess.run("ss -tn state established 2>/dev/null | grep -E ':22\\s' | wc -l",
+                          shell=True, capture_output=True,text=True,timeout=3)
+        count = int(r.stdout.strip() or 0)
     except: pass
-    return ""
-def _get_ips_from_conntrack(port):
+    return count
+
+def count_dropbear():
+    count = 0
+    try:
+        r = subprocess.run("ps aux | grep '[d]ropbear' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
+        count = max(0, int(r.stdout.strip() or 0) - 1)
+    except: pass
+    return count
+
+def count_openvpn():
+    count = 0
+    try:
+        status_file = "/etc/openvpn/server/openvpn-status.log"
+        if os.path.exists(status_file):
+            r = subprocess.run(f"grep -c '^CLIENT_LIST' {status_file}", shell=True, capture_output=True,text=True,timeout=3)
+            count = int(r.stdout.strip() or 0)
+    except: pass
+    return count
+
+def count_hysteria():
+    p, _, _ = read_config()
     ips = {}
     try:
-        r = subprocess.run(f"conntrack -L -p udp 2>/dev/null | grep -F 'dport={port}'",
+        r = subprocess.run(f"conntrack -L -p udp 2>/dev/null | grep -F 'dport={p}'",
                           shell=True, capture_output=True,text=True,timeout=5)
         for m in re.finditer(r'src=(\d+\.\d+\.\d+\.\d+)', r.stdout):
             ip = m.group(1)
-            if not ip.startswith("127."):
+            if not ip.startswith("127.") and not ip.startswith("10.") and not ip.startswith("192.168."):
+                ips[ip] = True
+    except: pass
+    return len(ips)
+
+def get_hysteria_ips():
+    p, _, _ = read_config()
+    ips = {}
+    try:
+        r = subprocess.run(f"conntrack -L -p udp 2>/dev/null | grep -F 'dport={p}'",
+                          shell=True, capture_output=True,text=True,timeout=5)
+        for m in re.finditer(r'src=(\d+\.\d+\.\d+\.\d+)', r.stdout):
+            ip = m.group(1)
+            if not ip.startswith("127.") and not ip.startswith("10.") and not ip.startswith("192.168."):
                 ips[ip] = ips.get(ip, 0) + 1
     except: pass
     return ips
-def _get_ips_from_logs():
-    ips = {}
+
+def get_vnstat_traffic():
+    rx, tx = 0, 0
     try:
-        r = subprocess.run(["journalctl","-u","hysteria","--no-pager","--since","5 min ago"],
-                          capture_output=True,text=True,timeout=5)
-        for m in re.finditer(r'\[src:(\d+\.\d+\.\d+\.\d+):\d+\]', r.stdout):
-            ips[m.group(1)] = ips.get(m.group(1), 0) + 1
+        r = subprocess.run("vnstat --json a 2>/dev/null", shell=True, capture_output=True,text=True,timeout=5)
+        if r.stdout:
+            d = json.loads(r.stdout)
+            rx = d.get("interfaces", [{}])[0].get("traffic", {}).get("total", {}).get("rx", 0)
+            tx = d.get("interfaces", [{}])[0].get("traffic", {}).get("total", {}).get("tx", 0)
     except: pass
-    return ips
-def count_online():
-    p, _, _ = read_config()
-    return len(_get_ips_from_conntrack(p))
+    return rx, tx
+
+def get_sysinfo():
+    info = {}
+    try:
+        r = subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3)
+        info["uptime"] = r.stdout.strip().replace("up ", "")
+    except: info["uptime"] = "N/A"
+    try:
+        r = subprocess.run("top -bn1 | awk '/Cpu\\(s\\)/ {print $8}'", shell=True, capture_output=True,text=True,timeout=3)
+        cpu_free = float(r.stdout.strip() or 0)
+        info["cpu"] = f"{100 - cpu_free:.1f}%"
+    except: info["cpu"] = "N/A"
+    try:
+        r = subprocess.run("free -m | awk 'NR==2{printf \"%s/%sMB\",$3,$2}'", shell=True, capture_output=True,text=True,timeout=3)
+        info["ram"] = r.stdout.strip()
+    except: info["ram"] = "N/A"
+    try:
+        r = subprocess.run("df -h / | awk 'NR==2{printf \"%s/%s\",$3,$2}'", shell=True, capture_output=True,text=True,timeout=3)
+        info["disk"] = r.stdout.strip()
+    except: info["disk"] = "N/A"
+    try:
+        r = subprocess.run("cat /proc/loadavg | awk '{print $1}'", shell=True, capture_output=True,text=True,timeout=3)
+        info["load"] = r.stdout.strip()
+    except: info["load"] = "N/A"
+    return info
+
+def get_swap_info():
+    try:
+        r = subprocess.run("free -h | awk '/Swap:/{print $2}'", shell=True, capture_output=True,text=True,timeout=3)
+        return r.stdout.strip()
+    except: return "N/A"
 
 # ══ Web Dashboard ══
 def get_dashboard_data():
     p, a, o = read_config()
     ip = get_ip()
     st = get_status()
-    ct_ips = _get_ips_from_conntrack(p)
-    log_ips = _get_ips_from_logs()
-    all_ips = {}
-    for src, ips in [("conntrack", ct_ips), ("log", log_ips)]:
-        for ip_addr, cnt in ips.items():
-            if ip_addr not in all_ips: all_ips[ip_addr] = {"conntrack": 0, "log": 0}
-            all_ips[ip_addr][src] = cnt
+    ssh = count_ssh()
+    db = count_dropbear()
+    ovpn = count_openvpn()
+    hy = count_hysteria()
+    total = ssh + db + ovpn + hy
+    rx, tx = get_vnstat_traffic()
+    sysinfo = get_sysinfo()
+    hy_ips = get_hysteria_ips()
     return {
-        "server_ip": ip,
-        "port": p,
-        "auth": a,
-        "obfs": o,
-        "status": st,
-        "uptime": get_uptime(),
-        "online_users": len(all_ips),
-        "users_list": [{"ip": ip, "conntrack": v["conntrack"], "log": v["log"]} for ip, v in all_ips.items()]
+        "server_ip": ip, "port": p, "auth": a, "obfs": o,
+        "status": st, "uptime": sysinfo["uptime"],
+        "total_online": total,
+        "ssh": ssh, "dropbear": db, "openvpn": ovpn, "hysteria": hy,
+        "vnstat_rx": rx, "vnstat_tx": tx,
+        "cpu": sysinfo["cpu"], "ram": sysinfo["ram"], "disk": sysinfo["disk"],
+        "load": sysinfo["load"],
+        "hysteria_users": [{"ip": ip, "count": c} for ip, c in hy_ips.items()]
     }
 
 DASHBOARD_HTML = '''<!DOCTYPE html>
@@ -140,16 +214,15 @@ DASHBOARD_HTML = '''<!DOCTYPE html>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:1200px;margin:0 auto;padding:20px}
 h1{font-size:1.8rem;margin-bottom:20px;text-align:center}
-h2{font-size:1.2rem;margin-bottom:10px;color:#58a6ff}
+h2{font-size:1.1rem;margin-bottom:10px;color:#58a6ff}
 .muted{color:#8b949e}
-.grid{display:grid;gap:20px;margin-bottom:20px}
-@media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+.grid{display:grid;gap:16px;margin-bottom:16px}
+@media(min-width:900px){.grid{grid-template-columns:1fr 1fr 1fr 1fr}}
 .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;box-shadow:0 2px 4px rgba(0,0,0,.3)}
-.card h3{color:#58a6ff;margin-bottom:12px;font-size:1.1rem}
 .stat{font-size:2rem;font-weight:bold;color:#3fb950}
-.stat-label{color:#8b949e;font-size:.9rem}
-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.95rem}
-th,td{padding:10px;text-align:left}
+.stat-label{color:#8b949e;font-size:.85rem}
+table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9rem}
+th,td{padding:8px;text-align:left}
 th{background:#1f242c;color:#c9d1d9;font-weight:600}
 tr:nth-child(even){background:#1a1f27}
 tr:nth-child(odd){background:#161b22}
@@ -161,16 +234,29 @@ tr:nth-child(odd){background:#161b22}
 .rainbow{height:4px;background:linear-gradient(90deg,#f85149,#d29922,#3fb950,#58a6ff,#bc8cff);border-radius:2px;margin-bottom:20px}
 .refresh{background:#238636;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.9rem}
 .refresh:hover{background:#2ea043}
-#auto-refresh{margin-left:10px}
 footer{text-align:center;color:#8b949e;margin-top:20px;font-size:.85rem}
+.card-wide{grid-column:span 2}
+@media(max-width:900px){.card-wide{grid-column:span 1}}
 </style>
 </head>
 <body>
 <div class="rainbow"></div>
 <h1>&#x1F680; IDA UDPHysteria Dashboard</h1>
 <div class="grid">
-<div class="card">
-<h3>&#x1F4CA; Server Status</h3>
+<div class="card"><h2>&#x1F4E1; SSH</h2><div style="text-align:center"><div class="stat" id="ssh">0</div><div class="stat-label">Online</div></div></div>
+<div class="card"><h2>&#x1F510; Dropbear</h2><div style="text-align:center"><div class="stat" id="dropbear">0</div><div class="stat-label">Online</div></div></div>
+<div class="card"><h2>&#x1F535; OpenVPN</h2><div style="text-align:center"><div class="stat" id="openvpn">0</div><div class="stat-label">Online</div></div></div>
+<div class="card"><h2>&#x1F680; Hysteria</h2><div style="text-align:center"><div class="stat" id="hysteria">0</div><div class="stat-label">Online</div></div></div>
+</div>
+<div class="grid">
+<div class="card"><h2>&#x1F4CA; Total Online</h2><div style="text-align:center"><div class="stat" style="font-size:2.5rem;color:#58a6ff" id="total">0</div><div class="stat-label">All Services</div></div></div>
+<div class="card"><h2>&#x1F4BB; CPU</h2><div style="text-align:center"><div class="stat" id="cpu">0%</div><div class="stat-label">Usage</div></div></div>
+<div class="card"><h2>&#x1F9E0; RAM</h2><div style="text-align:center"><div class="stat" style="font-size:1.5rem" id="ram">0/0MB</div><div class="stat-label">Usage</div></div></div>
+<div class="card"><h2>&#x1F4BE; Disk</h2><div style="text-align:center"><div class="stat" style="font-size:1.5rem" id="disk">0/0</div><div class="stat-label">Usage</div></div></div>
+</div>
+<div class="grid">
+<div class="card card-wide">
+<h2>&#x1F310; Server Info</h2>
 <table>
 <tr><td class="muted">Server IP</td><td id="ip">Loading...</td></tr>
 <tr><td class="muted">Port</td><td id="port">-</td></tr>
@@ -178,46 +264,55 @@ footer{text-align:center;color:#8b949e;margin-top:20px;font-size:.85rem}
 <tr><td class="muted">Obfs</td><td id="obfs">-</td></tr>
 <tr><td class="muted">Status</td><td id="status">-</td></tr>
 <tr><td class="muted">Uptime</td><td id="uptime">-</td></tr>
+<tr><td class="muted">Load Avg</td><td id="load">-</td></tr>
 </table>
 </div>
-<div class="card">
-<h3>&#x1F465; Online Users</h3>
-<div style="text-align:center;padding:20px">
-<div class="stat" id="users-count">0</div>
-<div class="stat-label">Connected Users</div>
-</div>
-</div>
-</div>
-<div class="card">
-<h3>&#x1F4CA; User List</h3>
+<div class="card card-wide">
+<h2>&#x1F4CA; Traffic (vnStat)</h2>
 <table>
-<thead><tr><th>#</th><th>IP Address</th><th>Conntrack</th><th>Logs</th></tr></thead>
-<tbody id="users-table"><tr><td colspan="4" class="muted">Loading...</td></tr></tbody>
+<tr><td class="muted">Download (Total)</td><td id="rx">0</td></tr>
+<tr><td class="muted">Upload (Total)</td><td id="tx">0</td></tr>
 </table>
 </div>
-<div style="text-align:center;margin-top:20px">
-<button class="refresh" onclick="fetchData()">&#x1F504; Refresh</button>
-<label id="auto-refresh"><input type="checkbox" checked onchange="toggleAuto()"> Auto-refresh (10s)</label>
 </div>
-<footer>IDA UDPHysteria v3.4 &mdash; Powered by conntrack</footer>
+<div class="card" style="margin-bottom:16px">
+<h2>&#x1F465; Hysteria Users</h2>
+<table>
+<thead><tr><th>#</th><th>IP Address</th><th>Packets</th></tr></thead>
+<tbody id="users-table"><tr><td colspan="3" class="muted">Loading...</td></tr></tbody>
+</table>
+</div>
+<div style="text-align:center;margin-top:16px">
+<button class="refresh" onclick="fetchData()">&#x1F504; Refresh</button>
+<span class="muted" style="margin-left:10px">Auto-refresh: 10s</span>
+</div>
+<footer>IDA UDPHysteria v4.0 &mdash; Powered by conntrack + vnStat</footer>
 <script>
-let auto=true;let timer;
-function toggleAuto(){auto=document.querySelector("#auto-refresh input").checked;if(auto)startTimer();else clearInterval(timer)}
-function startTimer(){clearInterval(timer);timer=setInterval(fetchData,10000)}
+function fmt(b){if(b>=1073741824)return(b/1073741824).toFixed(1)+" GB";if(b>=1048576)return(b/1048576).toFixed(1)+" MB";if(b>=1024)return(b/1024).toFixed(1)+" KB";return b+" B"}
 async function fetchData(){
 try{const r=await fetch("/api/status");const d=await r.json();
+document.getElementById("ssh").textContent=d.ssh;
+document.getElementById("dropbear").textContent=d.dropbear;
+document.getElementById("openvpn").textContent=d.openvpn;
+document.getElementById("hysteria").textContent=d.hysteria;
+document.getElementById("total").textContent=d.total_online;
+document.getElementById("cpu").textContent=d.cpu;
+document.getElementById("ram").textContent=d.ram;
+document.getElementById("disk").textContent=d.disk;
 document.getElementById("ip").textContent=d.server_ip;
 document.getElementById("port").textContent=d.port;
 document.getElementById("auth").textContent=d.auth||"-";
 document.getElementById("obfs").textContent=d.obfs||"-";
 document.getElementById("status").innerHTML=d.status=="active"?'<span class="badge badge-ok">ONLINE</span>':'<span class="badge badge-err">OFFLINE</span>';
 document.getElementById("uptime").textContent=d.uptime||"-";
-document.getElementById("users-count").textContent=d.online_users;
+document.getElementById("load").textContent=d.load||"-";
+document.getElementById("rx").textContent=fmt(d.vnstat_rx);
+document.getElementById("tx").textContent=fmt(d.vnstat_tx);
 const tb=document.getElementById("users-table");
-if(d.users_list.length>0){tb.innerHTML=d.users_list.map((u,i)=>"<tr><td>"+(i+1)+"</td><td>"+u.ip+"</td><td>"+u.conntrack+"</td><td>"+u.log+"</td></tr>").join("")}
-else{tb.innerHTML='<tr><td colspan="4" class="muted">No users online</td></tr>'}
+if(d.hysteria_users.length>0){tb.innerHTML=d.hysteria_users.map((u,i)=>"<tr><td>"+(i+1)+"</td><td>"+u.ip+"</td><td>"+u.count+"</td></tr>").join("")}
+else{tb.innerHTML='<tr><td colspan="3" class="muted">No users online</td></tr>'}
 }catch(e){console.error(e)}}
-fetchData();startTimer();
+fetchData();setInterval(fetchData,10000);
 </script>
 </body>
 </html>'''
@@ -239,18 +334,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         else:
             self.send_response(404)
             self.end_headers()
-    def log_message(self, format, *args):
-        pass  # Suppress logs
+    def log_message(self, format, *args): pass
 
 def start_web_server():
     os.makedirs(WEB_DIR, exist_ok=True)
-    with open(f"{WEB_DIR}/index.html", "w") as f:
-        f.write(DASHBOARD_HTML)
     try:
         server = HTTPServer(("0.0.0.0", WEB_PORT), DashboardHandler)
         server.serve_forever()
-    except OSError:
-        pass
+    except OSError: pass
 
 def is_web_running():
     try:
@@ -261,10 +352,12 @@ def is_web_running():
 
 # ══ Menu Screen ══
 def show_menu():
-    p, a, o = read_config(); ip = get_ip(); st = get_status(); on = count_online()
+    p, a, o = read_config(); ip = get_ip(); st = get_status()
     u = get_uptime()
+    ssh = count_ssh(); db = count_dropbear(); ovpn = count_openvpn(); hy = count_hysteria()
+    total = ssh + db + ovpn + hy
     stt = f"{G}ONLINE{NC}" if st=="active" else f"{R}OFFLINE{NC}"
-    web_st = f"{G}RUNNING{NC}" if is_web_running() else f"{R}STOPPED{NC}"
+    web_st = f"{G}ON{NC}" if is_web_running() else f"{R}OFF{NC}"
     os.system("clear")
     print()
     box()
@@ -277,26 +370,28 @@ def show_menu():
         ("Port", f"{p} (20000-50000)"),
         ("Auth", a if a else "-"),
         ("Obfs", o if o else "-"),
-        ("Status", f"{stt}  Users:{on}  Up:{u}"),
+        ("Status", f"{stt}  Up:{u}"),
+        ("Online", f"Total:{WHT}{total}{NC}  SSH:{WHT}{ssh}{NC}  DB:{WHT}{db}{NC}  OVPN:{WHT}{ovpn}{NC}  Hy:{WHT}{hy}{NC}"),
         ("Web Panel", f"{web_st}  Port:{WEB_PORT}"),
     ]
     for label, val in info:
-        bput(f"{D}{pad(label, LW)}{NC} : {WHT}{val}{NC}")
+        bput(f"{D}{pad(label, LW)}{NC} : {val}")
     bput(f"  {R}\u258c{NC}{O}\u258c{NC}{Y}\u258c{NC}{G}\u258c{NC}{C}\u258c{NC}{B}\u258c{NC}{M}\u258c{NC}")
     bput(f"  {D}{'='*14}  {NC}SELECT OPTION{D}  {'='*14}{NC}")
     bput("")
-    menu_row("01","📊","Connection Info","07","🔑","Edit AUTH")
-    menu_row("02","🔄","Restart","08","🔏","Edit OBFS")
-    menu_row("03","⛔","Stop","09","🔧","Change Port")
-    menu_row("04","▶","Start","10","👥","Online Users")
-    menu_row("05","📜","View Logs","11","🌐","Speed Test")
-    menu_row("06","🔍","System Info","12","🖥️","Web Dashboard")
-    menu_row("00","🚪","Exit","","","")
+    menu_row("01","📊","Connection Info","09","🔑","Edit AUTH")
+    menu_row("02","🔄","Restart","10","🔏","Edit OBFS")
+    menu_row("03","⛔","Stop","11","🔧","Change Port")
+    menu_row("04","▶","Start","12","👥","Online Users")
+    menu_row("05","📜","View Logs","13","🌐","Speed Test")
+    menu_row("06","🔍","System Info","14","🖥️","Web Dashboard")
+    menu_row("07","📈","Traffic Stats","15","💾","Setup Swap")
+    menu_row("08","🐛","Debug Log","00","🚪","Exit")
     bput("")
     bsep()
     bot()
     print()
-    return input(f"  {Y}>>{NC} {BD}Choose{NC} {D}[00-12]{NC} : ").strip()
+    return input(f"  {Y}>>{NC} {BD}Choose{NC} {D}[00-15]{NC} : ").strip()
 
 # ══ Screens ══
 def show_info():
@@ -317,23 +412,19 @@ def do_restart():
     os.system("clear"); print(); box(); center(f"{Y}🔄{NC} {BD}Restart Hysteria{NC}"); bsep()
     subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
     time.sleep(2)
-    new_st = get_status()
-    bput(f"{G}✅{NC} Restarted" if new_st=="active" else f"{R}❌{NC} Failed")
+    bput(f"{G}✅{NC} Restarted" if get_status()=="active" else f"{R}❌{NC} Failed")
     bsep(); bot(); print(); time.sleep(1.5)
 
 def do_stop():
     os.system("clear"); print(); box(); center(f"{R}⛔{NC} {BD}Stop Hysteria{NC}"); bsep()
     subprocess.run(["systemctl","stop","hysteria"], capture_output=True,text=True,timeout=10)
-    time.sleep(1)
-    bput(f"{G}✅{NC} Stopped")
-    bsep(); bot(); print(); time.sleep(1.5)
+    time.sleep(1); bput(f"{G}✅{NC} Stopped"); bsep(); bot(); print(); time.sleep(1.5)
 
 def do_start():
     os.system("clear"); print(); box(); center(f"{G}▶{NC} {BD}Start Hysteria{NC}"); bsep()
     subprocess.run(["systemctl","start","hysteria"], capture_output=True,text=True,timeout=10)
     time.sleep(2)
-    new_st = get_status()
-    bput(f"{G}✅{NC} Started" if new_st=="active" else f"{R}❌{NC} Failed")
+    bput(f"{G}✅{NC} Started" if get_status()=="active" else f"{R}❌{NC} Failed")
     bsep(); bot(); print(); time.sleep(1.5)
 
 def view_logs():
@@ -341,37 +432,51 @@ def view_logs():
     r = subprocess.run(["journalctl","-u","hysteria","--no-pager","-n","30","--since","10 min ago"],
                        capture_output=True,text=True,timeout=5)
     for line in r.stdout.strip().split("\n")[-20:]:
-        bput(f"{D}{line[:52]}{NC}")
+        bput(f"{D}{line[:54]}{NC}")
     if not r.stdout.strip(): bput(f"{D}  No recent logs{NC}")
     bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
 
 def sys_info():
     os.system("clear"); print(); box(); center(f"{M}🔍{NC} {BD}System Info{NC}"); bsep()
-    for cmd, label in [
-        ("hostname -f","Hostname"), ("uname -r","Kernel"), ("uptime -p","Uptime"),
-        ("free -h | awk '/Mem:/{print $3\"/\"$2}'","Memory"), ("df -h / | awk 'NR==2{print $3\"/\"$2}'","Disk"),
-    ]:
-        try:
-            r = subprocess.run(cmd, shell=True, capture_output=True,text=True,timeout=3)
-            val = r.stdout.strip().strip('"')[:30]
-            bput(f"{D}{pad(label,12)}{NC} : {WHT}{val}{NC}")
-        except: pass
+    si = get_sysinfo()
+    for label, val in [("Hostname", subprocess.run("hostname -f",shell=True,capture_output=True,text=True,timeout=3).stdout.strip()),
+                       ("Kernel", subprocess.run("uname -r",shell=True,capture_output=True,text=True,timeout=3).stdout.strip()),
+                       ("Uptime", si["uptime"]), ("CPU", si["cpu"]), ("RAM", si["ram"]),
+                       ("Disk", si["disk"]), ("Load", si["load"]),
+                       ("NIC", get_nic()), ("Swap", get_swap_info())]:
+        bput(f"{D}{pad(label,12)}{NC} : {WHT}{val[:35]}{NC}")
+    bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
+
+def traffic_stats():
+    os.system("clear"); print(); box(); center(f"{G}📈{NC} {BD}Traffic Stats (vnStat){NC}"); bsep()
+    rx, tx = get_vnstat_traffic()
+    def fmt(b):
+        if b >= 1073741824: return f"{b/1073741824:.1f} GB"
+        if b >= 1048576: return f"{b/1048576:.1f} MB"
+        if b >= 1024: return f"{b/1024:.1f} KB"
+        return f"{b} B"
+    bput(f"  {D}Download (Total){NC} : {WHT}{fmt(rx)}{NC}")
+    bput(f"  {D}Upload (Total){NC}   : {WHT}{fmt(tx)}{NC}")
+    bput("")
+    try:
+        r = subprocess.run("vnstat -d 2>/dev/null | head -15", shell=True, capture_output=True,text=True,timeout=5)
+        for line in r.stdout.strip().split("\n")[:12]:
+            bput(f"  {D}{line[:54]}{NC}")
+    except: pass
     bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
 
 def edit_auth():
     os.system("clear"); print(); box(); center(f"{M}🔑{NC} {BD}Edit AUTH{NC}"); bsep()
     _,old,_ = read_config()
-    bput(f"Current AUTH : {WHT}{old}{NC}")
-    bput("")
-    new_auth = input(f"  {Y}>>{NC} New AUTH (empty=cancel) : ").strip()
-    if not new_auth: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
+    bput(f"Current AUTH : {WHT}{old}{NC}"); bput("")
+    new = input(f"  {Y}>>{NC} New AUTH (empty=cancel) : ").strip()
+    if not new: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
     try:
         with open(HYST_CONFIG) as f: d = json.load(f)
-        d["auth_str"] = new_auth
+        d["auth_str"] = new
         with open(HYST_CONFIG, 'w') as f: json.dump(d, f, indent=2)
         subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
-        time.sleep(2)
-        bput(f"{G}✅{NC} AUTH updated & restarted")
+        time.sleep(2); bput(f"{G}✅{NC} AUTH updated & restarted")
         bsep(); bot(); print(); time.sleep(2)
     except Exception as e:
         bput(f"{R}❌{NC} Error: {e}"); bsep(); bot(); print(); time.sleep(2)
@@ -379,17 +484,15 @@ def edit_auth():
 def edit_obfs():
     os.system("clear"); print(); box(); center(f"{M}🔏{NC} {BD}Edit OBFS{NC}"); bsep()
     _,_,old = read_config()
-    bput(f"Current OBFS : {WHT}{old}{NC}")
-    bput("")
-    new_obfs = input(f"  {Y}>>{NC} New OBFS (empty=cancel) : ").strip()
-    if not new_obfs: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
+    bput(f"Current OBFS : {WHT}{old}{NC}"); bput("")
+    new = input(f"  {Y}>>{NC} New OBFS (empty=cancel) : ").strip()
+    if not new: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
     try:
         with open(HYST_CONFIG) as f: d = json.load(f)
-        d["obfs"] = new_obfs
+        d["obfs"] = new
         with open(HYST_CONFIG, 'w') as f: json.dump(d, f, indent=2)
         subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
-        time.sleep(2)
-        bput(f"{G}✅{NC} OBFS updated & restarted")
+        time.sleep(2); bput(f"{G}✅{NC} OBFS updated & restarted")
         bsep(); bot(); print(); time.sleep(2)
     except Exception as e:
         bput(f"{R}❌{NC} Error: {e}"); bsep(); bot(); print(); time.sleep(2)
@@ -397,118 +500,125 @@ def edit_obfs():
 def change_port():
     os.system("clear"); print(); box(); center(f"{M}🔧{NC} {BD}Change Port{NC}"); bsep()
     p,_,_ = read_config()
-    bput(f"Current Port : {WHT}{p}{NC}")
-    bput("")
-    new_port = input(f"  {Y}>>{NC} New Port (empty=cancel) : ").strip()
-    if not new_port: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
-    if not new_port.isdigit() or not (1 <= int(new_port) <= 65535):
+    bput(f"Current Port : {WHT}{p}{NC}"); bput("")
+    new = input(f"  {Y}>>{NC} New Port (empty=cancel) : ").strip()
+    if not new: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
+    if not new.isdigit() or not (1 <= int(new) <= 65535):
         bput(f"{R}❌{NC} Invalid port"); bsep(); bot(); print(); time.sleep(2); return
     try:
         with open(HYST_CONFIG) as f: d = json.load(f)
         old_listen = d.get("listen", ":25000")
-        prefix = old_listen.rsplit(":", 1)[0]
-        d["listen"] = f"{prefix}:{new_port}"
+        d["listen"] = f"{old_listen.rsplit(':',1)[0]}:{new}"
         with open(HYST_CONFIG, 'w') as f: json.dump(d, f, indent=2)
         subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
-        time.sleep(2)
-        bput(f"{G}✅{NC} Port changed to {new_port} & restarted")
+        time.sleep(2); bput(f"{G}✅{NC} Port changed to {new} & restarted")
         bsep(); bot(); print(); time.sleep(2)
     except Exception as e:
         bput(f"{R}❌{NC} Error: {e}"); bsep(); bot(); print(); time.sleep(2)
 
 def check_online():
     os.system("clear"); print(); box(); center(f"{M}👥{NC} {BD}Online Users{NC}"); bsep()
-    bput(f"{D}  Scanning: conntrack + logs...{NC}")
-    print(f"\r", end="")
-    p, _, _ = read_config()
-    try:
-        ct_ips = _get_ips_from_conntrack(p)
-        bput(f"  {D}Conntrack:{NC} {WHT}{len(ct_ips)}{NC} user(s)")
-        log_ips = _get_ips_from_logs()
-        bput(f"  {D}Logs (5 min):{NC} {WHT}{len(log_ips)}{NC} client(s)")
-        all_ips = {}
-        for src_name, ip_dict in [("CONNTRACK", ct_ips), ("LOG", log_ips)]:
-            for ip, cnt in ip_dict.items():
-                if ip not in all_ips: all_ips[ip] = {"conntrack": 0, "log": 0}
-                all_ips[ip][src_name.lower()] = cnt
-        bput("")
-        bput(f"  {WHT}Total unique users: {len(all_ips)}{NC}")
-        bput("")
-        if all_ips:
-            for i, (ip, info) in enumerate(sorted(all_ips.items(), key=lambda x: -(x[1]["conntrack"]+x[1]["log"]))[:10], 1):
-                try: h = socket.gethostbyaddr(ip)[0][:30]
-                except: h = "unknown"
-                src = []
-                if info["conntrack"]: src.append(f"CONN:{info['conntrack']}")
-                if info["log"]: src.append(f"LOG:{info['log']}")
-                bput(f"  {G}{i:2}.{NC} {WHT}{ip}{NC}  {D}{h}{NC}  {D}[{','.join(src)}]{NC}")
-        else:
-            bput(f"  {D}No active users detected{NC}")
-    except Exception as e:
-        bput(f"  {R}Error: {e}{NC}")
+    bput(f"{D}  Scanning all services...{NC}")
+    ssh = count_ssh(); db = count_dropbear(); ovpn = count_openvpn(); hy = count_hysteria()
+    total = ssh + db + ovpn + hy
+    bput(f"  {D}SSH:{NC} {WHT}{ssh}{NC}  {D}Dropbear:{NC} {WHT}{db}{NC}  {D}OpenVPN:{NC} {WHT}{ovpn}{NC}  {D}Hysteria:{NC} {WHT}{hy}{NC}")
+    bput(f"  {WHT}Total Online: {total}{NC}")
+    bsep()
+    if hy > 0:
+        bput(f"  {D}Hysteria Users:{NC}")
+        hy_ips = get_hysteria_ips()
+        for i, (ip, cnt) in enumerate(sorted(hy_ips.items(), key=lambda x: -x[1])[:10], 1):
+            try: h = socket.gethostbyaddr(ip)[0][:30]
+            except: h = "unknown"
+            bput(f"  {G}{i:2}.{NC} {WHT}{ip}{NC}  {D}{h}{NC}")
     bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
 
 def speed_test():
     os.system("clear"); print(); box(); center(f"{G}🌐{NC} {BD}Speed Test{NC}"); bsep()
     bput(f"{D}  Testing download speed...{NC}")
-    print(f"\r", end="")
     try:
         r = subprocess.run("curl -s -o /dev/null -w '%{speed_download}' https://speed.cloudflare.com/__down?bytes=10000000",
                            shell=True, capture_output=True,text=True,timeout=30)
-        bps = float(r.stdout.strip().replace("'",""))
-        mbps = bps * 8 / 1_000_000
+        mbps = float(r.stdout.strip().replace("'","")) * 8 / 1_000_000
         bput(f"  {WHT}{mbps:.1f} Mbps{NC} download")
-    except:
-        bput(f"  {R}Test failed{NC}")
+    except: bput(f"  {R}Test failed{NC}")
     bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
 
 def web_dashboard():
     os.system("clear"); print(); box(); center(f"{C}🖥️{NC} {BD}Web Dashboard{NC}"); bsep()
     ip = get_ip()
-    running = is_web_running()
-    if running:
-        bput(f"  {G}✅{NC} Web Dashboard is {G}RUNNING{NC}")
+    if is_web_running():
+        bput(f"  {G}✅{NC} Web Dashboard {G}RUNNING{NC}")
         bput(f"  {D}Open: {WHT}http://{ip}:{WEB_PORT}{NC}")
-        bput("")
-        bput(f"  {Y}[1]{NC} Stop Web Server")
-        bput(f"  {Y}[2]{NC} Restart Web Server")
-        bput(f"  {Y}[0]{NC} Back")
+        bput(f""); bput(f"  {Y}[1]{NC} Stop  {Y}[2]{NC} Restart  {Y}[0]{NC} Back")
         ch = input(f"  {Y}>>{NC} Choose: ").strip()
         if ch == "1":
-            subprocess.run(f"pkill -f 'python3.*hysteria-menu.py.*web'", shell=True, capture_output=True)
-            subprocess.run(f"pkill -f 'python3 -m http.server {WEB_PORT}'", shell=True, capture_output=True)
-            time.sleep(1)
-            bput(f"  {G}✅{NC} Web server stopped")
-            time.sleep(1.5)
+            subprocess.run("pkill -f 'http.server 82'", shell=True, capture_output=True)
+            time.sleep(1); bput(f"  {G}✅{NC} Stopped"); time.sleep(1.5)
         elif ch == "2":
-            subprocess.run(f"pkill -f 'python3.*hysteria-menu.py.*web'", shell=True, capture_output=True)
-            subprocess.run(f"pkill -f 'python3 -m http.server {WEB_PORT}'", shell=True, capture_output=True)
-            time.sleep(1)
-            Thread(target=start_web_server, daemon=True).start()
-            time.sleep(2)
-            bput(f"  {G}✅{NC} Web server restarted")
-            time.sleep(1.5)
+            subprocess.run("pkill -f 'http.server 82'", shell=True, capture_output=True)
+            time.sleep(1); Thread(target=start_web_server, daemon=True).start()
+            time.sleep(2); bput(f"  {G}✅{NC} Restarted"); time.sleep(1.5)
     else:
-        bput(f"  {R}❌{NC} Web Dashboard is {R}STOPPED{NC}")
-        bput("")
-        bput(f"  {Y}[1]{NC} Start Web Server")
-        bput(f"  {Y}[0]{NC} Back")
+        bput(f"  {R}❌{NC} Web Dashboard {R}STOPPED{NC}")
+        bput(f""); bput(f"  {Y}[1]{NC} Start  {Y}[0]{NC} Back")
         ch = input(f"  {Y}>>{NC} Choose: ").strip()
         if ch == "1":
             Thread(target=start_web_server, daemon=True).start()
             time.sleep(2)
-            if is_web_running():
-                bput(f"  {G}✅{NC} Web server started!")
-                bput(f"  {D}Open: {WHT}http://{ip}:{WEB_PORT}{NC}")
-            else:
-                bput(f"  {R}❌{NC} Failed to start")
+            if is_web_running(): bput(f"  {G}✅{NC} Started! Open: {WHT}http://{ip}:{WEB_PORT}{NC}")
+            else: bput(f"  {R}❌{NC} Failed")
             time.sleep(2)
     bsep(); bot(); print()
+
+def setup_swap():
+    os.system("clear"); print(); box(); center(f"{M}💾{NC} {BD}Setup Swap{NC}"); bsep()
+    si = get_sysinfo()
+    ram_mb = 0
+    try:
+        r = subprocess.run("free -m | awk '/Mem:/{print $2}'", shell=True, capture_output=True,text=True,timeout=3)
+        ram_mb = int(r.stdout.strip())
+    except: pass
+    if ram_mb <= 512: swap_mb = ram_mb * 2
+    elif ram_mb <= 1024: swap_mb = ram_mb * 2
+    elif ram_mb <= 2048: swap_mb = ram_mb
+    elif ram_mb <= 4096: swap_mb = ram_mb
+    else: swap_mb = 4096
+    bput(f"  {D}RAM:{NC} {WHT}{ram_mb}MB{NC}  {D}Swap to create:{NC} {WHT}{swap_mb}MB{NC}")
+    bput("")
+    ch = input(f"  {Y}>>{NC} Create swap {swap_mb}MB? (Y/n): ").strip()
+    if ch and ch.lower() != "y": bput(f"  {D}Cancelled{NC}"); bsep(); bot(); print(); return
+    try:
+        subprocess.run("swapoff -a 2>/dev/null", shell=True, capture_output=True,timeout=5)
+        subprocess.run(f"fallocate -l {swap_mb}M {SWAP_FILE} 2>/dev/null || dd if=/dev/zero of={SWAP_FILE} bs=1M count={swap_mb}",
+                      shell=True, capture_output=True,timeout=60)
+        subprocess.run(f"chmod 600 {SWAP_FILE}", shell=True, capture_output=True,timeout=3)
+        subprocess.run(f"mkswap {SWAP_FILE}", shell=True, capture_output=True,timeout=10)
+        subprocess.run(f"swapon {SWAP_FILE}", shell=True, capture_output=True,timeout=10)
+        if not os.path.exists("/etc/fstab.bak"):
+            subprocess.run("cp /etc/fstab /etc/fstab.bak", shell=True, capture_output=True,timeout=3)
+        subprocess.run(f"grep -q '{SWAP_FILE}' /etc/fstab || echo '{SWAP_FILE} none swap sw 0 0' >> /etc/fstab",
+                      shell=True, capture_output=True,timeout=3)
+        subprocess.run("sysctl vm.swappiness=10", shell=True, capture_output=True,timeout=3)
+        bput(f"  {G}✅{NC} Swap created: {swap_mb}MB")
+        bsep(); bot(); print()
+    except Exception as e:
+        bput(f"  {R}❌{NC} Error: {e}"); bsep(); bot(); print()
+
+def debug_log():
+    os.system("clear"); print(); box(); center(f"{M}🐛{NC} {BD}Debug Log{NC}"); bsep()
+    log_file = "/var/log/showon-debug.log"
+    if os.path.exists(log_file):
+        r = subprocess.run(f"tail -n 30 {log_file}", shell=True, capture_output=True,text=True,timeout=5)
+        for line in r.stdout.strip().split("\n")[:25]:
+            bput(f"{D}{line[:54]}{NC}")
+    else:
+        bput(f"  {D}No debug log found{NC}")
+    bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
 
 # ══ Main ══
 if __name__ == "__main__":
     os.system("chmod 600 " + HYST_CONFIG + " 2>/dev/null")
-    # Start web server in background if not running
     if not is_web_running():
         Thread(target=start_web_server, daemon=True).start()
     while True:
@@ -520,19 +630,19 @@ if __name__ == "__main__":
             elif ch == "04": do_start()
             elif ch == "05": view_logs()
             elif ch == "06": sys_info()
-            elif ch == "07": edit_auth()
-            elif ch == "08": edit_obfs()
-            elif ch == "09": change_port()
-            elif ch == "10": check_online()
-            elif ch == "11": speed_test()
-            elif ch == "12": web_dashboard()
+            elif ch == "07": traffic_stats()
+            elif ch == "08": debug_log()
+            elif ch == "09": edit_auth()
+            elif ch == "10": edit_obfs()
+            elif ch == "11": change_port()
+            elif ch == "12": check_online()
+            elif ch == "13": speed_test()
+            elif ch == "14": web_dashboard()
+            elif ch == "15": setup_swap()
             elif ch == "00":
                 os.system("clear"); print()
                 box(); center(f"{G}👋{NC} {BD}Thank You - IDA UDPHysteria{NC}"); bot()
-                print()
-                break
-            else:
-                if ch: pass
+                print(); break
         except KeyboardInterrupt: break
         except Exception as e:
             print(f"  {R}Error: {e}{NC}"); time.sleep(2)
