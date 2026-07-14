@@ -80,15 +80,39 @@ def get_uptime():
         if m: return f"{m.group(1)}m"
     except: pass
     return ""
-def count_online():
+def _get_ips_from_logs():
+    """Parse Hysteria logs for recently active client IPs (last 5 min)"""
+    ips = {}
     try:
-        p,_,_ = read_config(); my = get_ip()
-        r = subprocess.run(f"timeout 1.5 tcpdump -i any -c 5 -n udp port {p} 2>/dev/null", shell=True, capture_output=True,text=True,timeout=3)
-        ips = set()
-        for ip in re.findall(r'(\d+\.\d+\.\d+\.\d+)', r.stdout):
-            if ip not in (my,"0.0.0.0") and not ip.startswith("127."): ips.add(ip)
-        return len(ips)
-    except: return 0
+        r = subprocess.run(
+            ["journalctl", "-u", "hysteria", "--no-pager", "--since", "5 min ago"],
+            capture_output=True, text=True, timeout=5
+        )
+        for m in re.finditer(r'\[src:(\d+\.\d+\.\d+\.\d+):\d+\]', r.stdout):
+            ip = m.group(1)
+            ips[ip] = ips.get(ip, 0) + 1
+    except: pass
+    return ips
+
+def _get_ips_from_tcpdump(port, secs=8):
+    """Capture UDP traffic for N seconds and extract client IPs"""
+    ips = {}
+    try:
+        r = subprocess.run(
+            f"timeout {secs} tcpdump -i any -c 50 -n udp port {port} 2>/dev/null",
+            shell=True, capture_output=True, text=True, timeout=secs+3
+        )
+        my = get_ip()
+        for m in re.finditer(r'(\d+\.\d+\.\d+\.\d+)', r.stdout):
+            ip = m.group(1)
+            if ip != my and not ip.startswith("127.") and ip != "0.0.0.0":
+                ips[ip] = ips.get(ip, 0) + 1
+    except: pass
+    return ips
+
+def count_online():
+    """Fast count — logs only (no tcpdump delay on every menu refresh)"""
+    return len(_get_ips_from_logs())
 
 # ══ Menu Screen ══
 def show_menu():
@@ -252,27 +276,42 @@ def change_port():
 
 def check_online():
     os.system("clear"); print(); box(); center(f"{M}\U0001f465{NC} {BD}Online Users{NC}"); bsep()
-    bput(f"{D}  Scanning 5 sec...{NC}")
+    bput(f"{D}  Scanning: logs + 10s live capture...{NC}")
     print(f"\r", end="")
-    p,_,_ = read_config(); my = get_ip()
+    p, _, _ = read_config()
     try:
-        r = subprocess.run(f"timeout 5 tcpdump -i any -c 20 -n udp port {p} 2>/dev/null",
-                           shell=True, capture_output=True,text=True,timeout=7)
-        ips = {}
-        for m in re.finditer(r'(\d+\.\d+\.\d+\.\d+)', r.stdout):
-            ip = m.group(1)
-            if ip != my and not ip.startswith("127.") and ip != "0.0.0.0":
-                ips[ip] = ips.get(ip, 0) + 1
-        bput(f"  {WHT}{len(ips)}{NC} user(s) online")
+        # Method 1: Parse logs (last 5 min)
+        log_ips = _get_ips_from_logs()
+        bput(f"  {D}From logs (5 min):{NC} {WHT}{len(log_ips)}{NC} client(s)")
+
+        # Method 2: Live traffic capture (10 sec)
+        bput(f"  {D}Capturing 10 sec traffic...{NC}")
+        traffic_ips = _get_ips_from_tcpdump(p, secs=10)
+
+        # Merge both sources
+        all_ips = {}
+        for src_name, ip_dict in [("LOG", log_ips), ("LIVE", traffic_ips)]:
+            for ip, cnt in ip_dict.items():
+                if ip not in all_ips:
+                    all_ips[ip] = {"log": 0, "live": 0}
+                all_ips[ip][src_name.lower()] = cnt
+
+        bput(f"  {D}From live traffic:{NC} {WHT}{len(traffic_ips)}{NC} client(s)")
         bput("")
-        if ips:
-            for i, (ip, cnt) in enumerate(sorted(ips.items(), key=lambda x: -x[1])[:10], 1):
+        bput(f"  {WHT}Total unique users: {len(all_ips)}{NC}")
+        bput("")
+        if all_ips:
+            for i, (ip, info) in enumerate(sorted(all_ips.items(), key=lambda x: -(x[1]["log"]+x[1]["live"]))[:10], 1):
                 try:
-                    h = socket.gethostbyaddr(ip)[0][:35]
+                    h = socket.gethostbyaddr(ip)[0][:30]
                 except: h = "unknown"
-                bput(f"  {G}{i:2}.{NC} {WHT}{ip}{NC}  {D}{h}{NC}")
+                src = []
+                if info["log"]: src.append(f"LOG:{info['log']}")
+                if info["live"]: src.append(f"LIVE:{info['live']}")
+                bput(f"  {G}{i:2}.{NC} {WHT}{ip}{NC}  {D}{h}{NC}  {D}[{','.join(src)}]{NC}")
         else:
-            bput(f"  {D}No users online{NC}")
+            bput(f"  {D}No active users detected{NC}")
+            bput(f"  {D}(idle/connected-but-no-traffic won't show){NC}")
     except Exception as e:
         bput(f"  {R}Error: {e}{NC}")
     bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
