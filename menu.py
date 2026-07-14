@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""IDA UDPHysteria Manager v3.3 — English Boxed Menu"""
+"""IDA UDPHysteria Manager — voltx-style Menu"""
 import os, subprocess, re, unicodedata, json, socket, time
 
 # ══ Config ══
@@ -10,10 +10,10 @@ R = '\033[0;31m'; G = '\033[0;32m'; O = '\033[0;33m'
 Y = '\033[1;33m'; B = '\033[0;34m'; M = '\033[0;35m'
 C = '\033[0;36m'; WHT = '\033[1;37m'; BD = '\033[1m'
 D = '\033[2m'; NC = '\033[0m'
+LG = '\033[0;92m'; LY = '\033[0;93m'; LC = '\033[0;96m'
+LM = '\033[0;95m'; LR = '\033[0;91m'; LB = '\033[0;94m'
 
-# ══ Box (W=58) ══
-W = 58
-H = '\u2550'
+# ══ Helpers ══
 def vislen(s):
     s2 = re.sub(r'\033\[[0-9;]*m', '', s)
     try:
@@ -35,328 +35,268 @@ def vislen(s):
                 w += 2
             else: w += 1
         return w
+
 def pad(s, w):
     return s + ' ' * max(0, w - vislen(s))
-def box():
-    print(f"  {B}\u2554{H*(W-2)}\u2557{NC}")
-def bot():
-    print(f"  {B}\u255a{H*(W-2)}\u255d{NC}")
-def bsep():
-    print(f"  {B}\u2560{H*(W-2)}\u2563{NC}")
-def bput(c):
-    p = max(0, W-6-vislen(c))
-    print(f"  {B}\u2551{NC} {c}{' '*p} {B}\u2551{NC}")
-def center(t):
-    v = vislen(t); l = (W-4-v)//2; r = W-4-v-l
-    print(f"  {B}\u2551{NC}{' '*l}{t}{' '*r}{B}\u2551{NC}")
-def menu_row(n1, i1, l1, n2, i2, l2):
-    left = f"{G}[{n1}]{NC}  {i1}  {l1}"
-    right = f"{G}[{n2}]{NC}  {i2}  {l2}"
-    bput(f"  {pad(left, 25)}  {pad(right, 21)}")
+
+# Rainbow decorations
+def rb_top():
+    print(f"  {R}\u2588\u2588{O}\u2588\u2588{Y}\u2588\u2588{G}\u2588\u2588{C}\u2588\u2588{B}\u2588\u2588{M}\u2588\u2588{NC}"
+          f"{B}\u2554{'═'*56}\u2557{NC}"
+          f"{R}\u2588\u2588{O}\u2588\u2588{Y}\u2588\u2588{G}\u2588\u2588{C}\u2588\u2588{B}\u2588\u2588{M}\u2588\u2588{NC}")
+
+def rb_bot():
+    print(f"  {R}\u2588\u2588{O}\u2588\u2588{Y}\u2588\u2588{G}\u2588\u2588{C}\u2588\u2588{B}\u2588\u2588{M}\u2588\u2588{NC}"
+          f"{B}\u255a{'═'*56}\u255d{NC}"
+          f"{R}\u2588\u2588{O}\u2588\u2588{Y}\u2588\u2588{G}\u2588\u2588{C}\u2588\u2588{B}\u2588\u2588{M}\u2588\u2588{NC}")
+
+def rb_sep():
+    print(f"  {B}\u2560{'═'*56}\u2563{NC}")
+
+def bx(text):
+    """Print box line with proper padding"""
+    p = max(0, 56 - vislen(text))
+    print(f"  {B}\u2551{NC}{text}{' '*p}{B}\u2551{NC}")
 
 # ══ Data ══
 def read_config():
     try:
-        with open(HYST_CONFIG) as f:
-            d = json.load(f)
+        with open(HYST_CONFIG) as f: d = json.load(f)
         port = d.get("listen", ":25000").split(":")[-1]
         return port, d.get("auth_str", ""), d.get("obfs", "")
     except: return "25000", "", ""
+
 def get_ip():
-    try: return subprocess.check_output("curl -s ifconfig.me", shell=True, timeout=3).decode().strip()
+    try: return subprocess.check_output("curl -s --connect-timeout 3 ifconfig.me", shell=True, timeout=5).decode().strip()
     except: return "N/A"
+
 def get_status():
     try: return subprocess.run(["systemctl","is-active","hysteria"], capture_output=True,text=True,timeout=3).stdout.strip()
     except: return "inactive"
+
 def get_uptime():
     try:
-        up = subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ","")
-        d = re.search(r"(\d+)\s*day", up)
-        h = re.search(r"(\d+)\s*hour", up)
-        m = re.search(r"(\d+)\s*minute", up)
-        if d and h: return f"{d.group(1)}d{h.group(1)}h"
-        if d: return f"{d.group(1)}d"
-        if h: return f"{h.group(1)}h{m.group(1)}m" if m else f"{h.group(1)}h"
-        if m: return f"{m.group(1)}m"
+        r = subprocess.run(["systemctl","show","hysteria","-p","ActiveEnterTimestamp","--value"],
+                          capture_output=True,text=True,timeout=3)
+        t = r.stdout.strip()
+        if t:
+            from datetime import datetime
+            dt = datetime.strptime(t.replace(" UTC",""), "%a %Y-%m-%d %H:%M:%S")
+            delta = datetime.now() - dt
+            days = delta.days
+            hours, rem = divmod(delta.seconds, 3600)
+            mins, _ = divmod(rem, 60)
+            parts = []
+            if days: parts.append(f"{days} day{'s' if days>1 else ''}")
+            if hours: parts.append(f"{hours} hour{'s' if hours>1 else ''}")
+            if mins and not days: parts.append(f"{mins} min")
+            return ", ".join(parts) if parts else "just started"
     except: pass
     return ""
-def _get_ips_from_logs():
-    """Parse Hysteria logs for recently active client IPs (last 5 min)"""
-    ips = {}
-    try:
-        r = subprocess.run(
-            ["journalctl", "-u", "hysteria", "--no-pager", "--since", "5 min ago"],
-            capture_output=True, text=True, timeout=5
-        )
-        for m in re.finditer(r'\[src:(\d+\.\d+\.\d+\.\d+):\d+\]', r.stdout):
-            ip = m.group(1)
-            ips[ip] = ips.get(ip, 0) + 1
-    except: pass
-    return ips
-
-def _get_ips_from_tcpdump(port, secs=8):
-    """Capture UDP traffic for N seconds and extract client IPs"""
-    ips = {}
-    try:
-        r = subprocess.run(
-            f"timeout {secs} tcpdump -i any -c 50 -n udp port {port} 2>/dev/null",
-            shell=True, capture_output=True, text=True, timeout=secs+3
-        )
-        my = get_ip()
-        for m in re.finditer(r'(\d+\.\d+\.\d+\.\d+)', r.stdout):
-            ip = m.group(1)
-            if ip != my and not ip.startswith("127.") and ip != "0.0.0.0":
-                ips[ip] = ips.get(ip, 0) + 1
-    except: pass
-    return ips
 
 def count_online():
-    """Fast count — logs only (no tcpdump delay on every menu refresh)"""
-    return len(_get_ips_from_logs())
+    ips = set()
+    try:
+        r = subprocess.run(["journalctl","-u","hysteria","--no-pager","--since","5 min ago"],
+                          capture_output=True,text=True,timeout=5)
+        for m in re.finditer(r'\[src:(\d+\.\d+\.\d+\.\d+):\d+\]', r.stdout):
+            ips.add(m.group(1))
+    except: pass
+    return len(ips)
 
-# ══ Menu Screen ══
+# ══ Menu ══
 def show_menu():
-    p, a, o = read_config(); ip = get_ip(); st = get_status(); on = count_online()
-    u = get_uptime()
-    stt = f"{G}ONLINE{NC}" if st=="active" else f"{R}OFFLINE{NC}"
+    p, a, o = read_config()
+    ip = get_ip()
+    st = get_status()
+    on = count_online()
+    up = get_uptime()
+    sc = G if st=="active" else R
+    stx = "ON" if st=="active" else "OFF"
+
     os.system("clear")
     print()
-    box()
-    center(f"  {R}\u2588\u2588{O}\u2588\u2588{Y}\u2588\u2588{G}\u2588\u2588{C}\u2588\u2588{B}\u2588\u2588{M}\u2588\u2588{NC}  {WHT}IDA UDPHysteria{NC}  {R}\u2588\u2588{O}\u2588\u2588{Y}\u2588\u2588{G}\u2588\u2588{C}\u2588\u2588{B}\u2588\u2588{M}\u2588\u2588{NC}")
-    center(f"{D}Hysteria v1 Server Manager{NC}")
-    bsep()
-    # Server info — vertical list, aligned labels
-    LW = 12
-    info = [
-        ("Server IP", ip),
-        ("Port", f"{p} (20000-50000)"),
-        ("Auth", a if a else "-"),
-        ("Obfs", o if o else "-"),
-        ("Status", f"{stt}  Users:{on}  Up:{u}"),
-    ]
-    for label, val in info:
-        bput(f"{D}{pad(label, LW)}{NC} : {WHT}{val}{NC}")
-
-    # Color bar
-    bput(f"  {R}\u258c{NC}{O}\u258c{NC}{Y}\u258c{NC}{G}\u258c{NC}{C}\u258c{NC}{B}\u258c{NC}{M}\u258c{NC}")
-    bput(f"  {D}{'='*14}  {NC}SELECT OPTION{D}  {'='*14}{NC}")
-    bput("")
-    menu_row("01","\U0001f4ca","Connection Info","07","\U0001f511","Edit AUTH")
-    menu_row("02","\U0001f504","Restart","08","\U0001f50f","Edit OBFS")
-    menu_row("03","\u26d4","Stop","09","\U0001f527","Change Port")
-    menu_row("04","\u25b6","Start","10","\U0001f465","Online Users")
-    menu_row("05","\U0001f4dc","View Logs","11","\U0001f310","Speed Test")
-    menu_row("06","\U0001f50d","System Info","00","\U0001f6aa","Exit")
-    bput("")
-    bsep()
-    bot()
+    rb_top()
+    bx(f"{'':>18}{WHT}IDA UDPHysteria{NC}")
+    bx(f"  {LC}Version:{NC} {WHT}v3.3{NC}  {LC}Protocol:{NC} {WHT}[udp]{NC}")
+    rb_sep()
+    bx(f"  {LC}IPinfo:{NC} {WHT}{ip}{NC}")
+    bx(f"  {LC}Port:{NC} {WHT}{p}{NC}")
+    bx(f"  {LC}Auth:{NC} {WHT}{a if a else '-'}{NC}  {LC}Obfs:{NC} {WHT}{o if o else '-'}{NC}")
+    bx(f"  {LC}Status:{NC} {sc}[{stx}]{NC}  {LC}Users:{NC} {WHT}{on}{NC}")
+    if up:
+        bx(f"  {LC}Uptime:{NC} {WHT}{up}{NC}")
+    rb_sep()
+    bx(f"  {G}[01]{NC} Create AUTH Passwords  {G}[02]{NC} List Auth Passwords")
+    bx(f"  {G}[03]{NC} Restart Hysteria       {G}[04]{NC} System Info")
+    bx(f"  {G}[05]{NC} View Logs             {G}[06]{NC} Speed Test")
+    bx(f"  {G}[07]{NC} Online Users          {G}[08]{NC} Edit Config")
+    bx(f"  {G}[00]{NC} Exit")
+    rb_bot()
     print()
-    return input(f"  {Y}>>{NC} {BD}Choose{NC} {D}[00-11]{NC} : ").strip()
+    return input(f"  {Y}>>{NC} Select menu : ").strip()
 
-# ══ Screens ══
+# ══ Actions ══
 def show_info():
     p,a,o = read_config(); ip = get_ip()
-    os.system("clear"); print(); box(); center(f"{G}\U0001f4ca{NC} {BD}Connection Info{NC}"); bsep()
-    bput(f"Protocol   : {WHT}UDP Hysteria v1{NC}")
-    bput(f"Server     : {WHT}{ip}{NC}")
-    bput(f"Port       : {WHT}{p}{NC}")
-    bput(f"Auth       : {WHT}{a}{NC}")
-    bput(f"Obfs       : {WHT}{o}{NC}")
-    bput(f"Port Range : {WHT}20000-50000{NC}")
-    bput(f"Config     : {WHT}{HYST_CONFIG}{NC}")
-    bput("")
-    bput(f"{D}Use this info in Creeb / v2 Box client{NC}")
-    bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
+    os.system("clear"); print()
+    rb_top(); bx(f"  {WHT}Connection Info{NC}"); rb_sep()
+    bx(f"  {LC}Server:{NC} {WHT}{ip}{NC}")
+    bx(f"  {LC}Port:{NC} {WHT}{p} (20000-50000){NC}")
+    bx(f"  {LC}Auth:{NC} {WHT}{a}{NC}")
+    bx(f"  {LC}Obfs:{NC} {WHT}{o}{NC}")
+    rb_sep(); bx(f"  {D}Use in Creeb / v2 Box{NC}")
+    rb_bot(); print(); input(f"  {B}Press Enter{NC} ")
 
 def do_restart():
-    os.system("clear"); print(); box(); center(f"{Y}\U0001f504{NC} {BD}Restart Hysteria{NC}"); bsep()
-    st = subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
+    os.system("clear"); print()
+    rb_top(); bx(f"  {WHT}Restarting Hysteria...{NC}"); rb_bot(); print()
+    subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
     time.sleep(2)
-    new_st = get_status()
-    bput(f"{G}\u2705{NC} Restarted" if new_st=="active" else f"{R}\u274c{NC} Failed")
-    bsep(); bot(); print(); time.sleep(1.5)
+    if get_status()=="active": print(f"  {G}\u2705 Restarted!{NC}")
+    else: print(f"  {R}\u274c Failed{NC}")
+    time.sleep(1.5)
 
 def do_stop():
-    os.system("clear"); print(); box(); center(f"{R}\u26d4{NC} {BD}Stop Hysteria{NC}"); bsep()
+    os.system("clear"); print()
     subprocess.run(["systemctl","stop","hysteria"], capture_output=True,text=True,timeout=10)
-    time.sleep(1)
-    bput(f"{G}\u2705{NC} Stopped")
-    bsep(); bot(); print(); time.sleep(1.5)
+    time.sleep(1); print(f"  {G}\u2705 Stopped{NC}"); time.sleep(1.5)
 
 def do_start():
-    os.system("clear"); print(); box(); center(f"{G}\u25b6{NC} {BD}Start Hysteria{NC}"); bsep()
+    os.system("clear"); print()
     subprocess.run(["systemctl","start","hysteria"], capture_output=True,text=True,timeout=10)
     time.sleep(2)
-    new_st = get_status()
-    bput(f"{G}\u2705{NC} Started" if new_st=="active" else f"{R}\u274c{NC} Failed")
-    bsep(); bot(); print(); time.sleep(1.5)
+    if get_status()=="active": print(f"  {G}\u2705 Started!{NC}")
+    else: print(f"  {R}\u274c Failed{NC}")
+    time.sleep(1.5)
 
 def view_logs():
-    os.system("clear"); print(); box(); center(f"{C}\U0001f4dc{NC} {BD}Logs (Last 10 min){NC}"); bsep()
+    os.system("clear"); print()
+    rb_top(); bx(f"  {WHT}Logs (Last 10 min){NC}"); rb_sep()
     r = subprocess.run(["journalctl","-u","hysteria","--no-pager","-n","30","--since","10 min ago"],
                        capture_output=True,text=True,timeout=5)
     for line in r.stdout.strip().split("\n")[-20:]:
-        bput(f"{D}{line[:52]}{NC}")
-    if not r.stdout.strip(): bput(f"{D}  No recent logs{NC}")
-    bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
+        bx(f"  {D}{line[:52]}{NC}")
+    if not r.stdout.strip(): bx(f"  {D}No recent logs{NC}")
+    rb_bot(); print(); input(f"  {B}Press Enter{NC} ")
 
 def sys_info():
-    os.system("clear"); print(); box(); center(f"{M}\U0001f50d{NC} {BD}System Info{NC}"); bsep()
-    for cmd, label in [
-        ("hostname -f","Hostname"), ("uname -r","Kernel"), ("uptime -p","Uptime"),
-        ("free -h | awk '/Mem:/{print $3\"/\"$2}'","Memory"), ("df -h / | awk 'NR==2{print $3\"/\"$2}'","Disk"),
-        ("cat /etc/os-release 2>/dev/null | grep PRETTY|cut -d= -f2","OS"),
-    ]:
+    os.system("clear"); print()
+    rb_top(); bx(f"  {WHT}System Information{NC}"); rb_sep()
+    for cmd, lbl in [("hostname -f","Hostname"),("uname -r","Kernel"),("uptime -p","Uptime"),
+                     ("free -h | awk '/Mem:/{print $3\"/\"$2}'","Memory"),("df -h / | awk 'NR==2{print $3\"/\"$2}'","Disk")]:
         try:
             r = subprocess.run(cmd, shell=True, capture_output=True,text=True,timeout=3)
-            val = r.stdout.strip().strip('"')[:30]
-            bput(f"{D}{pad(label,12)}{NC} : {WHT}{val}{NC}")
+            bx(f"  {LC}{pad(lbl,12)}{NC}: {WHT}{r.stdout.strip()[:30]}{NC}")
         except: pass
-    bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
+    rb_bot(); print(); input(f"  {B}Press Enter{NC} ")
 
-def edit_auth():
-    global _saved
-    os.system("clear"); print(); box(); center(f"{M}\U0001f511{NC} {BD}Edit AUTH{NC}"); bsep()
-    _,old,_ = read_config()
-    bput(f"Current AUTH : {WHT}{old}{NC}")
-    bput("")
-    new_auth = input(f"  {Y}>>{NC} New AUTH (empty=cancel) : ").strip()
-    if not new_auth: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
-    try:
-        with open(HYST_CONFIG) as f: d = json.load(f)
-        d["auth_str"] = new_auth
-        with open(HYST_CONFIG, 'w') as f: json.dump(d, f, indent=2)
-        subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
-        time.sleep(2)
-        bput(f"{G}\u2705{NC} AUTH updated & restarted")
-        bsep(); bot(); print(); time.sleep(2)
-    except Exception as e:
-        bput(f"{R}\u274c{NC} Error: {e}"); bsep(); bot(); print(); time.sleep(2)
-
-def edit_obfs():
-    os.system("clear"); print(); box(); center(f"{M}\U0001f50f{NC} {BD}Edit OBFS{NC}"); bsep()
-    _,_,old = read_config()
-    bput(f"Current OBFS : {WHT}{old}{NC}")
-    bput("")
-    new_obfs = input(f"  {Y}>>{NC} New OBFS (empty=cancel) : ").strip()
-    if not new_obfs: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
-    try:
-        with open(HYST_CONFIG) as f: d = json.load(f)
-        d["obfs"] = new_obfs
-        with open(HYST_CONFIG, 'w') as f: json.dump(d, f, indent=2)
-        subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
-        time.sleep(2)
-        bput(f"{G}\u2705{NC} OBFS updated & restarted")
-        bsep(); bot(); print(); time.sleep(2)
-    except Exception as e:
-        bput(f"{R}\u274c{NC} Error: {e}"); bsep(); bot(); print(); time.sleep(2)
-
-def change_port():
-    global _saved
-    os.system("clear"); print(); box(); center(f"{M}\U0001f527{NC} {BD}Change Port{NC}"); bsep()
-    p,_,_ = read_config()
-    bput(f"Current Port : {WHT}{p}{NC}")
-    bput("")
-    new_port = input(f"  {Y}>>{NC} New Port (empty=cancel) : ").strip()
-    if not new_port: bput(f"{D}  Cancelled{NC}"); bsep(); bot(); print(); time.sleep(1); return
-    if not new_port.isdigit() or not (1 <= int(new_port) <= 65535):
-        bput(f"{R}\u274c{NC} Invalid port"); bsep(); bot(); print(); time.sleep(2); return
-    try:
-        with open(HYST_CONFIG) as f: d = json.load(f)
-        old_listen = d.get("listen", ":25000")
-        prefix = old_listen.rsplit(":", 1)[0]
-        d["listen"] = f"{prefix}:{new_port}"
-        with open(HYST_CONFIG, 'w') as f: json.dump(d, f, indent=2)
-        subprocess.run(["systemctl","restart","hysteria"], capture_output=True,text=True,timeout=10)
-        time.sleep(2)
-        bput(f"{G}\u2705{NC} Port changed to {new_port} & restarted")
-        bsep(); bot(); print(); time.sleep(2)
-    except Exception as e:
-        bput(f"{R}\u274c{NC} Error: {e}"); bsep(); bot(); print(); time.sleep(2)
-
-def check_online():
-    os.system("clear"); print(); box(); center(f"{M}\U0001f465{NC} {BD}Online Users{NC}"); bsep()
-    bput(f"{D}  Scanning: logs + 10s live capture...{NC}")
-    print(f"\r", end="")
-    p, _, _ = read_config()
-    try:
-        # Method 1: Parse logs (last 5 min)
-        log_ips = _get_ips_from_logs()
-        bput(f"  {D}From logs (5 min):{NC} {WHT}{len(log_ips)}{NC} client(s)")
-
-        # Method 2: Live traffic capture (10 sec)
-        bput(f"  {D}Capturing 10 sec traffic...{NC}")
-        traffic_ips = _get_ips_from_tcpdump(p, secs=10)
-
-        # Merge both sources
-        all_ips = {}
-        for src_name, ip_dict in [("LOG", log_ips), ("LIVE", traffic_ips)]:
-            for ip, cnt in ip_dict.items():
-                if ip not in all_ips:
-                    all_ips[ip] = {"log": 0, "live": 0}
-                all_ips[ip][src_name.lower()] = cnt
-
-        bput(f"  {D}From live traffic:{NC} {WHT}{len(traffic_ips)}{NC} client(s)")
-        bput("")
-        bput(f"  {WHT}Total unique users: {len(all_ips)}{NC}")
-        bput("")
-        if all_ips:
-            for i, (ip, info) in enumerate(sorted(all_ips.items(), key=lambda x: -(x[1]["log"]+x[1]["live"]))[:10], 1):
-                try:
-                    h = socket.gethostbyaddr(ip)[0][:30]
-                except: h = "unknown"
-                src = []
-                if info["log"]: src.append(f"LOG:{info['log']}")
-                if info["live"]: src.append(f"LIVE:{info['live']}")
-                bput(f"  {G}{i:2}.{NC} {WHT}{ip}{NC}  {D}{h}{NC}  {D}[{','.join(src)}]{NC}")
-        else:
-            bput(f"  {D}No active users detected{NC}")
-            bput(f"  {D}(idle/connected-but-no-traffic won't show){NC}")
-    except Exception as e:
-        bput(f"  {R}Error: {e}{NC}")
-    bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
+def edit_config():
+    os.system("clear"); print()
+    p,a,o = read_config()
+    rb_top(); bx(f"  {WHT}Edit Configuration{NC}"); rb_sep()
+    bx(f"  {LC}Auth:{NC} {WHT}{a}{NC}")
+    bx(f"  {LC}Obfs:{NC} {WHT}{o}{NC}")
+    bx(f"  {LC}Port:{NC} {WHT}{p}{NC}")
+    rb_sep()
+    print(f"\n  {Y}[1]{NC} Auth  {Y}[2]{NC} Obfs  {Y}[3]{NC} Port  {Y}[0]{NC} Cancel")
+    ch = input(f"  {Y}>>{NC} Choose: ").strip()
+    if ch=="1":
+        n = input(f"  {Y}>>{NC} New Auth: ").strip()
+        if n:
+            with open(HYST_CONFIG) as f: d=json.load(f)
+            d["auth_str"]=n
+            with open(HYST_CONFIG,'w') as f: json.dump(d,f,indent=2)
+            subprocess.run(["systemctl","restart","hysteria"],capture_output=True,text=True,timeout=10)
+            print(f"  {G}\u2705 Done!{NC}"); time.sleep(2)
+    elif ch=="2":
+        n = input(f"  {Y}>>{NC} New Obfs: ").strip()
+        if n:
+            with open(HYST_CONFIG) as f: d=json.load(f)
+            d["obfs"]=n
+            with open(HYST_CONFIG,'w') as f: json.dump(d,f,indent=2)
+            subprocess.run(["systemctl","restart","hysteria"],capture_output=True,text=True,timeout=10)
+            print(f"  {G}\u2705 Done!{NC}"); time.sleep(2)
+    elif ch=="3":
+        n = input(f"  {Y}>>{NC} New Port: ").strip()
+        if n and n.isdigit():
+            with open(HYST_CONFIG) as f: d=json.load(f)
+            old=d.get("listen",":25000")
+            d["listen"]=f"{old.rsplit(':',1)[0]}:{n}"
+            with open(HYST_CONFIG,'w') as f: json.dump(d,f,indent=2)
+            subprocess.run(["systemctl","restart","hysteria"],capture_output=True,text=True,timeout=10)
+            print(f"  {G}\u2705 Done!{NC}"); time.sleep(2)
 
 def speed_test():
-    os.system("clear"); print(); box(); center(f"{G}\U0001f310{NC} {BD}Speed Test{NC}"); bsep()
-    bput(f"{D}  Testing download speed...{NC}")
-    print(f"\r", end="")
+    os.system("clear"); print()
+    rb_top(); bx(f"  {WHT}Speed Test{NC}"); rb_sep()
+    bx(f"  {D}Testing...{NC}")
     try:
         r = subprocess.run("curl -s -o /dev/null -w '%{speed_download}' https://speed.cloudflare.com/__down?bytes=10000000",
                            shell=True, capture_output=True,text=True,timeout=30)
-        bps = float(r.stdout.strip().replace("'",""))
-        mbps = bps * 8 / 1_000_000
-        bput(f"  {WHT}{mbps:.1f} Mbps{NC} download")
-    except:
-        bput(f"  {R}Test failed{NC}")
-    bsep(); bot(); print(); input(f"  {B}Press Enter{NC} ")
+        mbps = float(r.stdout.strip().replace("'",""))*8/1_000_000
+        bx(f"  {WHT}{mbps:.1f} Mbps{NC} download")
+    except: bx(f"  {R}Failed{NC}")
+    rb_bot(); print(); input(f"  {B}Press Enter{NC} ")
+
+def check_online():
+    os.system("clear"); print()
+    rb_top(); bx(f"  {WHT}Online Users{NC}"); rb_sep()
+    p,_,_ = read_config()
+    log_ips = set()
+    try:
+        r = subprocess.run(["journalctl","-u","hysteria","--no-pager","--since","5 min ago"],
+                          capture_output=True,text=True,timeout=5)
+        for m in re.finditer(r'\[src:(\d+\.\d+\.\d+\.\d+):\d+\]', r.stdout):
+            log_ips.add(m.group(1))
+    except: pass
+    traffic_ips = {}
+    try:
+        r = subprocess.run(f"timeout 8 tcpdump -i any -c 50 -n udp port {p} 2>/dev/null",
+                          shell=True, capture_output=True,text=True,timeout=12)
+        my = get_ip()
+        for m in re.finditer(r'(\d+\.\d+\.\d+\.\d+)', r.stdout):
+            ip=m.group(1)
+            if ip!=my and not ip.startswith("127.") and ip!="0.0.0.0":
+                traffic_ips[ip]=traffic_ips.get(ip,0)+1
+    except: pass
+    all_ips = log_ips.union(set(traffic_ips.keys()))
+    bx(f"  {LC}Logs:{NC} {WHT}{len(log_ips)}{NC}  {LC}Live:{NC} {WHT}{len(traffic_ips)}{NC}  {LC}Total:{NC} {WHT}{len(all_ips)}{NC}")
+    rb_sep()
+    if all_ips:
+        for i,ip in enumerate(sorted(all_ips)[:10],1):
+            try: h=socket.gethostbyaddr(ip)[0][:25]
+            except: h="unknown"
+            s=[]
+            if ip in log_ips: s.append("LOG")
+            if ip in traffic_ips: s.append("LIVE")
+            bx(f"  {G}{i:2}.{NC} {WHT}{ip}{NC}  {D}{h}{NC}  {D}[{','.join(s)}]{NC}")
+    else:
+        bx(f"  {D}No active users{NC}")
+        bx(f"  {D}(idle won't show){NC}")
+    rb_bot(); print(); input(f"  {B}Press Enter{NC} ")
 
 # ══ Main ══
-if __name__ == "__main__":
-    os.system("chmod 600 " + HYST_CONFIG + " 2>/dev/null")
+if __name__=="__main__":
+    os.system("chmod 600 "+HYST_CONFIG+" 2>/dev/null")
     while True:
         try:
-            ch = show_menu()
-            if ch == "01": show_info()
-            elif ch == "02": do_restart()
-            elif ch == "03": do_stop()
-            elif ch == "04": do_start()
-            elif ch == "05": view_logs()
-            elif ch == "06": sys_info()
-            elif ch == "07": edit_auth()
-            elif ch == "08": edit_obfs()
-            elif ch == "09": change_port()
-            elif ch == "10": check_online()
-            elif ch == "11": speed_test()
-            elif ch == "00":
+            ch=show_menu()
+            if ch=="01": show_info()
+            elif ch=="02": do_restart()
+            elif ch=="03": do_stop()
+            elif ch=="04": do_start()
+            elif ch=="05": view_logs()
+            elif ch=="06": sys_info()
+            elif ch=="07": edit_config()
+            elif ch=="08": speed_test()
+            elif ch=="09": check_online()
+            elif ch=="00":
                 os.system("clear"); print()
-                box()
-                center(f"{G}\U0001f44b{NC} {BD}Thank You - IDA UDPHysteria{NC}")
-                bot()
-                print()
-                break
-            else:
-                if ch: bput(f"{R}Invalid option{NC}"); time.sleep(1)
+                rb_top(); bx(f"  {G}Thank You - IDA UDPHysteria{NC}"); rb_bot()
+                print(); break
         except KeyboardInterrupt: break
         except Exception as e:
             print(f"  {R}Error: {e}{NC}"); time.sleep(2)
-    os.system("clear"); print(); box(); center(f"{G}\U0001f44b{NC} {BD}Thank You - IDA UDPHysteria{NC}"); bot(); print()
+    os.system("clear"); print()
+    rb_top(); bx(f"  {G}Thank You - IDA UDPHysteria{NC}"); rb_bot(); print()
