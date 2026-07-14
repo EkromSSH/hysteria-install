@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>IDA UDPHysteria Dashboard</title>
+  <title>IDA UDPHysteria Dashboard v4.0</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -49,61 +49,48 @@
     .warn{color:#d29922;font-weight:600}
     .err{color:#f85149;font-weight:600}
     .highlight{color:#58a6ff;font-weight:600}
-    .rainbow{height:4px;background:linear-gradient(90deg,#f85149,#d29922,#3fb950,#58a6ff,#bc8cff);border-radius:2px;margin-bottom:20px}
-    footer{text-align:center;color:#8b949e;margin-top:20px;font-size:0.85rem}
   </style>
 </head>
 <body>
-  <div class="rainbow"></div>
-  <h1>&#x1F680; IDA UDPHysteria Dashboard <span class="muted">v4.0</span></h1>
+  <h1>IDA UDPHysteria Dashboard <span class="muted">v4.0</span></h1>
   <div class="grid">
     <div class="card">
-      <h2>&#x1F465; Online Summary</h2>
+      <h2>Online Summary</h2>
       <table>
         <thead>
           <tr>
-            <th>&#x2705; Total</th>
-            <th>&#x1F3AF; Limit</th>
-            <th>&#x1F512; SSH</th>
-            <th>&#x1F310; OpenVPN</th>
-            <th>&#x1F7E4; Dropbear</th>
-            <th>&#x26A1; Hysteria</th>
+            <th>✅ Total</th>
+            <th>🎯 Limit</th>
+            <th>🔒 SSH</th>
+            <th>🌐 OpenVPN</th>
+            <th>🟤 Dropbear</th>
+            <th>⚡ V2Ray</th>
+            <th>📡 AGN-UDP</th>
           </tr>
         </thead>
-        <tbody><tr id="row-online"><td colspan="6">Loading...</td></tr></tbody>
+        <tbody><tr id="row-online"><td colspan="7">Loading...</td></tr></tbody>
       </table>
     </div>
     <div class="card">
-      <h2>&#x1F4BB; System</h2>
+      <h2>System</h2>
       <div class="mono" id="sys">Loading...</div>
     </div>
   </div>
   <div class="grid">
     <div class="card">
-      <h2>&#x1F4CA; Traffic</h2>
+      <h2>Traffic</h2>
       <table>
-        <thead>
-          <tr><th>vnStat RX</th><th>vnStat TX</th></tr>
-        </thead>
+        <thead id="traffic-head"></thead>
         <tbody><tr id="row-net"><td>Loading...</td></tr></tbody>
       </table>
       <div class="muted" style="margin-top:6px;font-size:0.85rem">
-        * vnstat แสดง bandwidth รวมทั้งหมด
+        * vnstat แสดงเสมอ / V2Ray จะแสดงเมื่อมีข้อมูล
       </div>
-    </div>
-    <div class="card">
-      <h2>&#x1F465; Hysteria Users</h2>
-      <table>
-        <thead>
-          <tr><th>#</th><th>IP Address</th><th>Packets</th></tr>
-        </thead>
-        <tbody><tr id="row-users"><td colspan="3" class="muted">Loading...</td></tr></tbody>
-      </table>
     </div>
   </div>
 
   <script>
-    let lastOnline=null,lastSys=null,lastTraffic=null;
+    let lastSys=null,lastOnline=null,lastTraffic=null;
 
     async function j(u){
       const r=await fetch(u+"?_="+Date.now(),{cache:"no-store"});
@@ -120,11 +107,7 @@
     }
 
     async function loadAll(){
-      // Online Summary
-      try{
-        const a=await j('./online_app.json');
-        lastOnline=Array.isArray(a)?a[0]:a;
-      }catch(e){}
+      try{const a=await j('./online_app.json');lastOnline=Array.isArray(a)?a[0]:a}catch(e){}
       if(lastOnline){
         document.getElementById('row-online').innerHTML=
           `<td class="ok">${lastOnline.onlines}</td>
@@ -132,48 +115,38 @@
            <td>${lastOnline.ssh}</td>
            <td>${lastOnline.openvpn}</td>
            <td>${lastOnline.dropbear}</td>
+           <td>${lastOnline.v2ray}</td>
            <td class="warn">${lastOnline.agnudp}</td>`;
       }
 
-      // System Info
-      try{
-        const s=await j('./sysinfo.json');
-        lastSys=Array.isArray(s)?s[0]:s;
-      }catch(e){}
+      try{const s=await j('./sysinfo.json');lastSys=Array.isArray(s)?s[0]:s}catch(e){}
       if(lastSys){
         document.getElementById('sys').innerText=
-          `\u23F1 Uptime: ${lastSys.uptime}\n\u2191 CPU: ${lastSys.cpu_usage}\n\u2195 RAM: ${lastSys.ram_usage}\n\u2193 Disk: ${lastSys.disk_usage}`;
+          `⏱ Uptime: ${lastSys.uptime}\n🖥 CPU: ${lastSys.cpu_usage}\n🧠 RAM: ${lastSys.ram_usage}\n💾 Disk: ${lastSys.disk_usage}`;
       }
 
-      // Traffic Info
-      try{
-        const n=await j('./netinfo.json');
-        lastTraffic=Array.isArray(n)?n[0]:n;
-      }catch(e){}
+      try{const n=await j('./netinfo.json');lastTraffic=Array.isArray(n)?n[0]:n}catch(e){}
       if(lastTraffic){
         const d=lastTraffic;
-        document.getElementById('row-net').innerHTML=
-          `<td>${fmtBytes(d.vnstat_rx)}</td>
-           <td>${fmtBytes(d.vnstat_tx)}</td>`;
-      }
-
-      // Hysteria Users
-      try{
-        const h=await j('./hysteria_users.json');
-        const users=Array.isArray(h)?h:[];
-        if(users.length>0){
-          document.getElementById('row-users').innerHTML=
-            users.map((u,i)=>`<tr><td>${i+1}</td><td>${u.ip}</td><td>${u.count||'-'}</td></tr>`).join('');
+        if((d.v2ray_up&&d.v2ray_up!=="0")||(d.v2ray_down&&d.v2ray_down!=="0")){
+          document.getElementById('traffic-head').innerHTML=
+            `<tr><th>vnStat RX</th><th>vnStat TX</th><th>⚡ V2Ray Up</th><th>⚡ V2Ray Down</th></tr>`;
+          document.getElementById('row-net').innerHTML=
+            `<td>${fmtBytes(d.vnstat_rx)}</td>
+             <td>${fmtBytes(d.vnstat_tx)}</td>
+             <td>${fmtBytes(d.v2ray_up)}</td>
+             <td>${fmtBytes(d.v2ray_down)}</td>`;
         }else{
-          document.getElementById('row-users').innerHTML='<tr><td colspan="3" class="muted">No users online</td></tr>';
+          document.getElementById('traffic-head').innerHTML=
+            `<tr><th>vnStat RX</th><th>vnStat TX</th></tr>`;
+          document.getElementById('row-net').innerHTML=
+            `<td>${fmtBytes(d.vnstat_rx)}</td>
+             <td>${fmtBytes(d.vnstat_tx)}</td>`;
         }
-      }catch(e){
-        document.getElementById('row-users').innerHTML='<tr><td colspan="3" class="muted">No data</td></tr>';
       }
     }
 
     loadAll();setInterval(loadAll,5000);
   </script>
-  <footer>IDA UDPHysteria v4.0 &mdash; Powered by conntrack + vnStat</footer>
 </body>
 </html>
