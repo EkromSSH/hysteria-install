@@ -16,9 +16,28 @@ D = '\033[2m'; NC = '\033[0m'
 W = 58
 H = '═'
 def vislen(s):
-    from wcwidth import wcswidth
     s2 = re.sub(r'\033\[[0-9;]*m', '', s)
-    return sum(max(0, wcswidth(c)) for c in s2 if unicodedata.category(c) != 'Mn')
+    try:
+        from wcwidth import wcswidth
+        return sum(max(0, wcswidth(c)) for c in s2 if unicodedata.category(c) != 'Mn')
+    except ImportError:
+        w = 0
+        for c in s2:
+            if unicodedata.category(c) == 'Mn':
+                continue
+            cp = ord(c)
+            if (0x0E00 <= cp <= 0x0E7F or cp <= 0x00FF): w += 1  # Thai/ASCII
+            elif (0x1100 <= cp <= 0x11FF or 0x2E80 <= cp <= 0x2FFF or
+                  0x3000 <= cp <= 0x33FF or 0x3400 <= cp <= 0x4DBF or
+                  0x4E00 <= cp <= 0x9FFF or 0xAC00 <= cp <= 0xD7AF or
+                  0xF900 <= cp <= 0xFAFF or 0xFE10 <= cp <= 0xFE19 or
+                  0xFE30 <= cp <= 0xFE6F or 0xFF01 <= cp <= 0xFF60 or
+                  0xFFE0 <= cp <= 0xFFE6 or 0x1F000 <= cp <= 0x1FFFF or
+                  0x20000 <= cp <= 0x2FFFF or 0x30000 <= cp <= 0x3FFFF):
+                w += 2
+            else:
+                w += 1
+        return w
 def pad(s, w):
     return s + ' ' * max(0, w - vislen(s))
 def box():
