@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-#!/usr/bin/env python3
 """IDA UDPHysteria Manager v3.0 — Python Boxed Menu"""
 import os, subprocess, re, unicodedata, json, socket, time
 
@@ -42,10 +41,12 @@ def pad(s, w):
     return s + ' ' * max(0, w - vislen(s))
 def box():
     print(f"  {B}╔{H*(W-2)}╗{NC}")
+def bot():
+    print(f"  {B}╚{H*(W-2)}╝{NC}")
 def bsep():
     print(f"  {B}╠{H*(W-2)}╣{NC}")
 def bput(c):
-    p = max(0, W-4-vislen(c))
+    p = max(0, W-6-vislen(c))
     print(f"  {B}║{NC} {c}{' '*p} {B}║{NC}")
 def center(t):
     v = vislen(t); l = (W-4-v)//2; r = W-4-v-l
@@ -71,10 +72,23 @@ def get_status():
     try: return subprocess.run(["systemctl","is-active","hysteria"], capture_output=True,text=True,timeout=3).stdout.strip()
     except: return "inactive"
 def get_uptime():
+    # สั้นมาก: "1d 10h" หรือ "07-14 05:06"
+    try:
+        up = subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ","")
+        # "1 day, 10 hours, 4 minutes" → "1d 10h"
+        d = re.search(r"(\d+)\s*day", up)
+        h = re.search(r"(\d+)\s*hour", up)
+        m = re.search(r"(\d+)\s*minute", up)
+        parts = []
+        if d: parts.append(f"{d.group(1)}d")
+        if h: parts.append(f"{h.group(1)}h")
+        if m: parts.append(f"{m.group(1)}m")
+        if parts: return " ".join(parts)
+    except: pass
     try:
         r = subprocess.run(["systemctl","status","hysteria","--no-pager"], capture_output=True,text=True,timeout=3)
-        m = re.search(r"since (.*?);", r.stdout)
-        return m.group(1).strip()[:35] if m else ""
+        m = re.search(r"since .*?(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})", r.stdout)
+        return f"{m.group(1)[5:]} {m.group(2)}" if m else ""
     except: return ""
 def count_online():
     try:
@@ -93,12 +107,14 @@ def show_menu():
     os.system("clear")
     print()
     box()
-    center(f"{R}████{O}████{Y}████{G}████{C}████{B}████{M}████{NC}{WHT} IDA UDPHysteria {R}████{O}████{Y}████{G}████{C}████{B}████{M}████{NC}")
+    center(f"  {R}██{O}██{Y}██{G}██{C}██{B}██{M}██{NC}  {WHT}IDA UDPHysteria{NC}  {R}██{O}██{Y}██{G}██{C}██{B}██{M}██{NC}")
     center(f"{D}🚀 ระบบจัดการ Hysteria v1{NC}")
     bsep()
-    bput(f"  📡 IP : {WHT}{ip}{NC}  🔌 PORT : {WHT}{p}{NC}  {D}(20000-50000){NC}")
-    bput(f"  🔑 AUTH : {WHT}{a}{NC}     🔏 OBFS : {WHT}{o}{NC}")
-    bput(f"  📊 {si} {D}|{NC} {stt}     👥 {WHT}{on}{NC} คน     ⏱  {D}{up}{NC}")
+    # ── Server info (2 แถวกระชับ) ──
+    r1 = f"📡 IP:{WHT}{ip}{NC}  🔌 PORT:{WHT}{p}{NC}  🔑 AUTH:{WHT}{a}{NC}"
+    r2 = f"🔏 OBFS:{WHT}{o}{NC}  📊 {si} {D}|{NC} {stt}  👥 {WHT}{on}{NC}  ⏱ {D}{up}{NC}"
+    bput(r1)
+    bput(r2)
 
     # ── Color bar ──
     bput(f"  {R}▌{NC}{O}▌{NC}{Y}▌{NC}{G}▌{NC}{C}▌{NC}{B}▌{NC}{M}▌{NC}")
@@ -112,7 +128,7 @@ def show_menu():
     menu_row("06","🔍","ข้อมูลระบบ","00","🚪","ออกจากโปรแกรม")
     bput("")
     bsep()
-    box()
+    bot()
     print()
     return input(f"  {Y}👉{NC} {BD}เลือก{NC} {D}[00-11]{NC} : ").strip()
 
@@ -126,21 +142,21 @@ def show_info():
     bput(f"🔑 AUTH : {WHT}{a}{NC}")
     bput(f"🔏 OBFS : {WHT}{o}{NC}")
     bput(f"⚠ Allow Insecure : {G}✅ YES{NC}")
-    bsep(); bput(f"{D}💡 ใช้ตั้งค่าใน Creeb / v2 Box{NC}"); box(); print(); input(f"  {B}กด Enter{NC} ")
+    bsep(); bput(f"{D}💡 ใช้ตั้งค่าใน Creeb / v2 Box{NC}"); bot(); print(); input(f"  {B}กด Enter{NC} ")
 def restart():
     os.system("clear"); print(); box(); center(f"{Y}🔄{NC} {BD}รีสตาร์ท Hysteria{NC}"); bsep()
     bput(f"{Y}⏳{NC} กำลังรีสตาร์ท..."); subprocess.run(["systemctl","restart","hysteria"],timeout=10); time.sleep(2)
     st = subprocess.run(["systemctl","is-active","hysteria"],capture_output=True,text=True).stdout.strip()
-    bput(f"{G}✅{NC} รีสตาร์ทสำเร็จ" if st=="active" else f"{R}❌{NC} ไม่สำเร็จ"); box(); print(); time.sleep(1.5)
+    bput(f"{G}✅{NC} รีสตาร์ทสำเร็จ" if st=="active" else f"{R}❌{NC} ไม่สำเร็จ"); bot(); print(); time.sleep(1.5)
 def stop():
     os.system("clear"); print(); box(); center(f"{R}⛔{NC} {BD}หยุด Hysteria{NC}"); bsep()
     subprocess.run(["systemctl","stop","hysteria"],timeout=10)
-    bput(f"{G}✅{NC} หยุดแล้ว"); box(); print(); time.sleep(1.5)
+    bput(f"{G}✅{NC} หยุดแล้ว"); bot(); print(); time.sleep(1.5)
 def start():
     os.system("clear"); print(); box(); center(f"{G}▶{NC} {BD}เริ่ม Hysteria{NC}"); bsep()
     subprocess.run(["systemctl","start","hysteria"],timeout=10); time.sleep(2)
     st = subprocess.run(["systemctl","is-active","hysteria"],capture_output=True,text=True).stdout.strip()
-    bput(f"{G}✅{NC} เริ่มสำเร็จ" if st=="active" else f"{R}❌{NC} ไม่สำเร็จ"); box(); print(); time.sleep(1.5)
+    bput(f"{G}✅{NC} เริ่มสำเร็จ" if st=="active" else f"{R}❌{NC} ไม่สำเร็จ"); bot(); print(); time.sleep(1.5)
 def view_logs():
     os.system("clear"); print(); box(); center(f"{C}📜{NC} {BD}บันทึก 10 นาทีล่าสุด{NC}"); bsep()
     r = subprocess.run(["journalctl","-u","hysteria","--since","10 min ago","--no-pager"],capture_output=True,text=True,timeout=10)
@@ -148,7 +164,7 @@ def view_logs():
     if logs and logs[0]:
         for line in logs: bput(f"{D}{line[:80]}{NC}")
     else: bput(f"{Y}⚠ ไม่มี log{NC}")
-    box(); print(); input(f"  {B}กด Enter{NC} ")
+    bot(); print(); input(f"  {B}กด Enter{NC} ")
 def system_info():
     os.system("clear"); print(); box(); center(f"{M}🔍{NC} {BD}ข้อมูลระบบ{NC}"); bsep()
     cpu = subprocess.run("grep -c processor /proc/cpuinfo",shell=True,capture_output=True,text=True).stdout.strip()
@@ -163,7 +179,7 @@ def system_info():
     if sp.stdout.strip():
         for line in sp.stdout.strip().split("\n"): bput(f"{G}⚡{NC} {WHT}{line}{NC}")
     else: bput(f"{R}✗{NC} Speed test ล้มเหลว")
-    box(); print(); input(f"  {B}กด Enter{NC} ")
+    bot(); print(); input(f"  {B}กด Enter{NC} ")
 def edit_auth():
     p,a,o = read_config()
     os.system("clear"); print(); box(); center(f"{M}🔑{NC} {BD}แก้ AUTH{NC}"); bsep()
@@ -178,7 +194,7 @@ def edit_auth():
             subprocess.run(["systemctl","restart","hysteria"],timeout=10); bput(f"{G}✅{NC} รีสตาร์ทแล้ว")
         except Exception as e: bput(f"{R}❌{NC} {e}")
     else: bput(f"{R}✗{NC} ยกเลิก")
-    box(); print(); time.sleep(2)
+    bot(); print(); time.sleep(2)
 def edit_obfs():
     p,a,o = read_config()
     os.system("clear"); print(); box(); center(f"{M}🔏{NC} {BD}แก้ OBFS{NC}"); bsep()
@@ -191,7 +207,7 @@ def edit_obfs():
         bput(f"{G}✅{NC} {'ปิด' if not new else 'เปลี่ยนเป็น '+new}")
         subprocess.run(["systemctl","restart","hysteria"],timeout=10); bput(f"{G}✅{NC} รีสตาร์ทแล้ว")
     except Exception as e: bput(f"{R}❌{NC} {e}")
-    box(); print(); time.sleep(2)
+    bot(); print(); time.sleep(2)
 def change_port():
     p,a,o = read_config()
     os.system("clear"); print(); box(); center(f"{M}🔧{NC} {BD}เปลี่ยนพอร์ต{NC}"); bsep()
@@ -206,7 +222,7 @@ def change_port():
             subprocess.run(["systemctl","restart","hysteria"],timeout=10); bput(f"{G}✅{NC} รีสตาร์ทแล้ว")
         except Exception as e: bput(f"{R}❌{NC} {e}")
     else: bput(f"{R}✗{NC} ไม่ถูกต้อง (20000-50000)")
-    box(); print(); time.sleep(2)
+    bot(); print(); time.sleep(2)
 def check_online():
     os.system("clear"); print(); box(); center(f"{Y}👥{NC} {BD}ผู้ใช้ออนไลน์{NC}"); bsep()
     p,_,_ = read_config(); my = get_ip()
@@ -235,7 +251,7 @@ def check_online():
     except: pass
     hpid = subprocess.run("pgrep hysteria-v1",shell=True,capture_output=True,text=True).stdout.strip()
     if hpid: bput(f"📌 PID : {WHT}{hpid}{NC}")
-    box(); print(); input(f"  {B}กด Enter{NC} ")
+    bot(); print(); input(f"  {B}กด Enter{NC} ")
 def speed_test():
     os.system("clear"); print(); box(); center(f"{G}🌐{NC} {BD}Speed Test{NC}"); bsep()
     bput(f"{Y}⏳{NC} กำลังทดสอบ...")
@@ -243,7 +259,7 @@ def speed_test():
     if r.stdout.strip():
         for line in r.stdout.strip().split("\n"): bput(f"{G}⚡{NC} {WHT}{line}{NC}")
     else: bput(f"{R}✗{NC} Speed test ล้มเหลว")
-    box(); print(); input(f"  {B}กด Enter{NC} ")
+    bot(); print(); input(f"  {B}กด Enter{NC} ")
 
 # ══ Main Loop ══
 ACTIONS = {
@@ -260,4 +276,4 @@ while True:
     except KeyboardInterrupt: break
     except Exception as e:
         print(f"  {R}❌{NC} ผิดพลาด: {e}"); time.sleep(2)
-os.system("clear"); print(); box(); center(f"{G}👋{NC} {BD}ขอบคุณ — IDA UDPHysteria{NC}"); box(); print()
+os.system("clear"); print(); box(); center(f"{G}👋{NC} {BD}ขอบคุณ — IDA UDPHysteria{NC}"); bot(); print()
