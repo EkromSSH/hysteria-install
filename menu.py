@@ -180,164 +180,62 @@ def get_swap_info():
         return r.stdout.strip()
     except: return "N/A"
 
-# ══ Web Dashboard ══
-def get_dashboard_data():
-    p, a, o = read_config()
-    ip = get_ip()
-    st = get_status()
+# ══ JSON Generators (for web dashboard) ══
+def generate_json_files():
+    os.makedirs(WEB_DIR, exist_ok=True)
+    p, _, _ = read_config()
     ssh = count_ssh()
     db = count_dropbear()
     ovpn = count_openvpn()
     hy = count_hysteria()
     total = ssh + db + ovpn + hy
     rx, tx = get_vnstat_traffic()
-    sysinfo = get_sysinfo()
+    si = get_sysinfo()
     hy_ips = get_hysteria_ips()
-    return {
-        "server_ip": ip, "port": p, "auth": a, "obfs": o,
-        "status": st, "uptime": sysinfo["uptime"],
-        "total_online": total,
-        "ssh": ssh, "dropbear": db, "openvpn": ovpn, "hysteria": hy,
-        "vnstat_rx": rx, "vnstat_tx": tx,
-        "cpu": sysinfo["cpu"], "ram": sysinfo["ram"], "disk": sysinfo["disk"],
-        "load": sysinfo["load"],
-        "hysteria_users": [{"ip": ip, "count": c} for ip, c in hy_ips.items()]
-    }
 
-DASHBOARD_HTML = '''<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>IDA UDPHysteria Dashboard</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#0d1117;color:#e6edf3;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:1200px;margin:0 auto;padding:20px}
-h1{font-size:1.8rem;margin-bottom:20px;text-align:center}
-h2{font-size:1.1rem;margin-bottom:10px;color:#58a6ff}
-.muted{color:#8b949e}
-.grid{display:grid;gap:16px;margin-bottom:16px}
-@media(min-width:900px){.grid{grid-template-columns:1fr 1fr 1fr 1fr}}
-.card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;box-shadow:0 2px 4px rgba(0,0,0,.3)}
-.stat{font-size:2rem;font-weight:bold;color:#3fb950}
-.stat-label{color:#8b949e;font-size:.85rem}
-table{width:100%;border-collapse:collapse;margin-top:10px;font-size:.9rem}
-th,td{padding:8px;text-align:left}
-th{background:#1f242c;color:#c9d1d9;font-weight:600}
-tr:nth-child(even){background:#1a1f27}
-tr:nth-child(odd){background:#161b22}
-.ok{color:#3fb950;font-weight:600}
-.err{color:#f85149;font-weight:600}
-.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.8rem;font-weight:600}
-.badge-ok{background:#238636;color:#fff}
-.badge-err{background:#da3633;color:#fff}
-.rainbow{height:4px;background:linear-gradient(90deg,#f85149,#d29922,#3fb950,#58a6ff,#bc8cff);border-radius:2px;margin-bottom:20px}
-.refresh{background:#238636;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-size:.9rem}
-.refresh:hover{background:#2ea043}
-footer{text-align:center;color:#8b949e;margin-top:20px;font-size:.85rem}
-.card-wide{grid-column:span 2}
-@media(max-width:900px){.card-wide{grid-column:span 1}}
-</style>
-</head>
-<body>
-<div class="rainbow"></div>
-<h1>&#x1F680; IDA UDPHysteria Dashboard</h1>
-<div class="grid">
-<div class="card"><h2>&#x1F4E1; SSH</h2><div style="text-align:center"><div class="stat" id="ssh">0</div><div class="stat-label">Online</div></div></div>
-<div class="card"><h2>&#x1F510; Dropbear</h2><div style="text-align:center"><div class="stat" id="dropbear">0</div><div class="stat-label">Online</div></div></div>
-<div class="card"><h2>&#x1F535; OpenVPN</h2><div style="text-align:center"><div class="stat" id="openvpn">0</div><div class="stat-label">Online</div></div></div>
-<div class="card"><h2>&#x1F680; Hysteria</h2><div style="text-align:center"><div class="stat" id="hysteria">0</div><div class="stat-label">Online</div></div></div>
-</div>
-<div class="grid">
-<div class="card"><h2>&#x1F4CA; Total Online</h2><div style="text-align:center"><div class="stat" style="font-size:2.5rem;color:#58a6ff" id="total">0</div><div class="stat-label">All Services</div></div></div>
-<div class="card"><h2>&#x1F4BB; CPU</h2><div style="text-align:center"><div class="stat" id="cpu">0%</div><div class="stat-label">Usage</div></div></div>
-<div class="card"><h2>&#x1F9E0; RAM</h2><div style="text-align:center"><div class="stat" style="font-size:1.5rem" id="ram">0/0MB</div><div class="stat-label">Usage</div></div></div>
-<div class="card"><h2>&#x1F4BE; Disk</h2><div style="text-align:center"><div class="stat" style="font-size:1.5rem" id="disk">0/0</div><div class="stat-label">Usage</div></div></div>
-</div>
-<div class="grid">
-<div class="card card-wide">
-<h2>&#x1F310; Server Info</h2>
-<table>
-<tr><td class="muted">Server IP</td><td id="ip">Loading...</td></tr>
-<tr><td class="muted">Port</td><td id="port">-</td></tr>
-<tr><td class="muted">Auth</td><td id="auth">-</td></tr>
-<tr><td class="muted">Obfs</td><td id="obfs">-</td></tr>
-<tr><td class="muted">Status</td><td id="status">-</td></tr>
-<tr><td class="muted">Uptime</td><td id="uptime">-</td></tr>
-<tr><td class="muted">Load Avg</td><td id="load">-</td></tr>
-</table>
-</div>
-<div class="card card-wide">
-<h2>&#x1F4CA; Traffic (vnStat)</h2>
-<table>
-<tr><td class="muted">Download (Total)</td><td id="rx">0</td></tr>
-<tr><td class="muted">Upload (Total)</td><td id="tx">0</td></tr>
-</table>
-</div>
-</div>
-<div class="card" style="margin-bottom:16px">
-<h2>&#x1F465; Hysteria Users</h2>
-<table>
-<thead><tr><th>#</th><th>IP Address</th><th>Packets</th></tr></thead>
-<tbody id="users-table"><tr><td colspan="3" class="muted">Loading...</td></tr></tbody>
-</table>
-</div>
-<div style="text-align:center;margin-top:16px">
-<button class="refresh" onclick="fetchData()">&#x1F504; Refresh</button>
-<span class="muted" style="margin-left:10px">Auto-refresh: 10s</span>
-</div>
-<footer>IDA UDPHysteria v4.0 &mdash; Powered by conntrack + vnStat</footer>
-<script>
-function fmt(b){if(b>=1073741824)return(b/1073741824).toFixed(1)+" GB";if(b>=1048576)return(b/1048576).toFixed(1)+" MB";if(b>=1024)return(b/1024).toFixed(1)+" KB";return b+" B"}
-async function fetchData(){
-try{const r=await fetch("/api/status");const d=await r.json();
-document.getElementById("ssh").textContent=d.ssh;
-document.getElementById("dropbear").textContent=d.dropbear;
-document.getElementById("openvpn").textContent=d.openvpn;
-document.getElementById("hysteria").textContent=d.hysteria;
-document.getElementById("total").textContent=d.total_online;
-document.getElementById("cpu").textContent=d.cpu;
-document.getElementById("ram").textContent=d.ram;
-document.getElementById("disk").textContent=d.disk;
-document.getElementById("ip").textContent=d.server_ip;
-document.getElementById("port").textContent=d.port;
-document.getElementById("auth").textContent=d.auth||"-";
-document.getElementById("obfs").textContent=d.obfs||"-";
-document.getElementById("status").innerHTML=d.status=="active"?'<span class="badge badge-ok">ONLINE</span>':'<span class="badge badge-err">OFFLINE</span>';
-document.getElementById("uptime").textContent=d.uptime||"-";
-document.getElementById("load").textContent=d.load||"-";
-document.getElementById("rx").textContent=fmt(d.vnstat_rx);
-document.getElementById("tx").textContent=fmt(d.vnstat_tx);
-const tb=document.getElementById("users-table");
-if(d.hysteria_users.length>0){tb.innerHTML=d.hysteria_users.map((u,i)=>"<tr><td>"+(i+1)+"</td><td>"+u.ip+"</td><td>"+u.count+"</td></tr>").join("")}
-else{tb.innerHTML='<tr><td colspan="3" class="muted">No users online</td></tr>'}
-}catch(e){console.error(e)}}
-fetchData();setInterval(fetchData,10000);
-</script>
-</body>
-</html>'''
+    # online_app.json (ShowOn format)
+    online_data = [{"onlines": str(total), "limite": "2000", "ssh": str(ssh),
+                    "openvpn": str(ovpn), "dropbear": str(db), "v2ray": "0",
+                    "agnudp": str(hy), "timestamp": str(int(time.time()*1000))}]
+    with open(f"{WEB_DIR}/online_app.json", "w") as f:
+        json.dump(online_data, f)
 
+    # sysinfo.json
+    sysinfo_data = [{"uptime": si["uptime"], "cpu_usage": si["cpu"],
+                     "ram_usage": si["ram"], "disk_usage": si["disk"]}]
+    with open(f"{WEB_DIR}/sysinfo.json", "w") as f:
+        json.dump(sysinfo_data, f)
+
+    # netinfo.json
+    netinfo_data = [{"vnstat_rx": str(rx), "vnstat_tx": str(tx),
+                     "v2ray_up": "0", "v2ray_down": "0"}]
+    with open(f"{WEB_DIR}/netinfo.json", "w") as f:
+        json.dump(netinfo_data, f)
+
+    # hysteria_users.json
+    users_data = [{"ip": ip, "count": str(cnt)} for ip, cnt in hy_ips.items()]
+    with open(f"{WEB_DIR}/hysteria_users.json", "w") as f:
+        json.dump(users_data, f)
+
+# ══ Web Dashboard ══
 class DashboardHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=WEB_DIR, **kwargs)
     def do_GET(self):
         if self.path == "/" or self.path == "/index.html":
-            self.send_response(200)
-            self.send_header("Content-type", "text/html")
-            self.end_headers()
-            self.wfile.write(DASHBOARD_HTML.encode())
-        elif self.path == "/api/status":
-            self.send_response(200)
-            self.send_header("Content-type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.end_headers()
-            data = get_dashboard_data()
-            self.wfile.write(json.dumps(data).encode())
-        else:
-            self.send_response(404)
-            self.end_headers()
+            self.path = "/index.html"
+        super().do_GET()
     def log_message(self, format, *args): pass
 
 def start_web_server():
     os.makedirs(WEB_DIR, exist_ok=True)
+    # Generate JSON files
+    generate_json_files()
+    # Copy HTML if not exists
+    html_src = "/opt/hysteria/web/index.html"
+    if not os.path.exists(html_src):
+        with open(html_src, "w") as f:
+            f.write("Dashboard not configured")
     try:
         server = HTTPServer(("0.0.0.0", WEB_PORT), DashboardHandler)
         server.serve_forever()
@@ -345,9 +243,9 @@ def start_web_server():
 
 def is_web_running():
     try:
-        r = subprocess.run(f"curl -s --connect-timeout 2 http://127.0.0.1:{WEB_PORT}/api/status",
+        r = subprocess.run(f"curl -s --connect-timeout 2 http://127.0.0.1:{WEB_PORT}/",
                           shell=True, capture_output=True,text=True,timeout=3)
-        return "server_ip" in r.stdout
+        return "IDA" in r.stdout or "ShowOn" in r.stdout
     except: return False
 
 # ══ Menu Screen ══
@@ -547,6 +445,8 @@ def speed_test():
 def web_dashboard():
     os.system("clear"); print(); box(); center(f"{C}🖥️{NC} {BD}Web Dashboard{NC}"); bsep()
     ip = get_ip()
+    # Update JSON files
+    generate_json_files()
     if is_web_running():
         bput(f"  {G}✅{NC} Web Dashboard {G}RUNNING{NC}")
         bput(f"  {D}Open: {WHT}http://{ip}:{WEB_PORT}{NC}")
@@ -573,7 +473,6 @@ def web_dashboard():
 
 def setup_swap():
     os.system("clear"); print(); box(); center(f"{M}💾{NC} {BD}Setup Swap{NC}"); bsep()
-    si = get_sysinfo()
     ram_mb = 0
     try:
         r = subprocess.run("free -m | awk '/Mem:/{print $2}'", shell=True, capture_output=True,text=True,timeout=3)
@@ -619,10 +518,20 @@ def debug_log():
 # ══ Main ══
 if __name__ == "__main__":
     os.system("chmod 600 " + HYST_CONFIG + " 2>/dev/null")
+    # Install web files
+    os.makedirs(WEB_DIR, exist_ok=True)
+    if not os.path.exists(f"{WEB_DIR}/index.html"):
+        # Will be created by start_web_server
+        pass
+    # Generate initial JSON files
+    generate_json_files()
+    # Start web server in background
     if not is_web_running():
         Thread(target=start_web_server, daemon=True).start()
     while True:
         try:
+            # Update JSON files each refresh
+            generate_json_files()
             ch = show_menu()
             if ch == "01": show_info()
             elif ch == "02": do_restart()
