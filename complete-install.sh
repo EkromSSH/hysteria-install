@@ -125,7 +125,7 @@ cat > /usr/local/bin/vnstat-traffic.sh << 'SCRIPT2'
 while true; do
   RX=$(vnstat --json d 2>/dev/null | python3 -c "import json,sys;d=json.load(sys.stdin);dx=d.get('interfaces',[{}])[0].get('traffic',{}).get('days',[{}])[0];print(dx.get('rx',0))" 2>/dev/null||echo 0)
   TX=$(vnstat --json d 2>/dev/null | python3 -c "import json,sys;d=json.load(sys.stdin);dx=d.get('interfaces',[{}])[0].get('traffic',{}).get('days',[{}])[0];print(dx.get('tx',0))" 2>/dev/null||echo 0)
-  echo "{\"vnstat_rx\":\"$RX\",\"vnstat_tx\":\"$TX\",\"v2ray_up\":\"0\",\"v2ray_down\":\"0\"}"
+  echo "{\"vnstat_rx\":\"$RX\",\"vnstat_tx\":\"$TX\",\"v2ray_up\":\"0\",\"v2ray_down\":\"0\"}" > /home/vps/public_html/server/netinfo.json
   sleep 30
 done
 SCRIPT2
@@ -137,10 +137,11 @@ systemctl enable --now vnstat-traffic 2>/dev/null
 cat > /usr/local/bin/sysinfo.sh << 'SCRIPT3'
 #!/bin/bash
 while true; do
-  UPTIME=$(uptime -p | sed 's/up //'); CPU=$(awk -v a="$(awk 'NR==1{print $2+$4}' /proc/stat)" -v b="$(awk 'NR==1{print $2+$4+$5}' /proc/stat)" 'BEGIN{printf "%d", a*100/b}')
+  UPTIME=$(uptime -p | sed 's/up //')
+  CPU=$(awk -v a="$(awk 'NR==1{print $2+$4}' /proc/stat)" -v b="$(awk 'NR==1{print $2+$4+$5}' /proc/stat)" 'BEGIN{printf "%d", a*100/b}')
   RAM_U=$(free -m|awk '/^Mem:/{print $3}'); RAM_T=$(free -m|awk '/^Mem:/{print $2}')
   DISK=$(df -h /|awk 'NR==2{print $3"/"$2}')
-  echo "{\"uptime\":\"$UPTIME\",\"cpu_usage\":\"${CPU:-0}%\",\"ram_usage\":\"$RAM_U/${RAM_T}MB\",\"disk_usage\":\"$DISK\"}"
+  echo "[{\"uptime\":\"$UPTIME\",\"cpu_usage\":\"${CPU:-0}%\",\"ram_usage\":\"$RAM_U/${RAM_T}MB\",\"disk_usage\":\"$DISK\"}]" > /home/vps/public_html/server/sysinfo.json
   sleep 30
 done
 SCRIPT3
