@@ -138,7 +138,7 @@ cat > /usr/local/bin/sysinfo.sh << 'SCRIPT3'
 #!/bin/bash
 while true; do
   UPTIME=$(uptime -p | sed 's/up //')
-  CPU=$(awk -v a="$(awk 'NR==1{print $2+$4}' /proc/stat)" -v b="$(awk 'NR==1{print $2+$4+$5}' /proc/stat)" 'BEGIN{printf "%d", a*100/b}')
+CPU=$(awk -v a="$(awk 'NR==1{print $2+$4}' /proc/stat)" -v b="$(awk 'NR==1{print $2+$4+$5}' /proc/stat)" 'BEGIN{printf "%d", a*100/b}')
   RAM_U=$(free -m|awk '/^Mem:/{print $3}'); RAM_T=$(free -m|awk '/^Mem:/{print $2}')
   DISK=$(df -h /|awk 'NR==2{print $3"/"$2}')
   echo "{\"uptime\":\"$UPTIME\",\"cpu_usage\":\"${CPU:-0}%\",\"ram_usage\":\"$RAM_U/${RAM_T}MB\",\"disk_usage\":\"$DISK\"}"
