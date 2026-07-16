@@ -86,12 +86,6 @@ systemctl is-active hysteria.service | grep -q active && echo "✅ Service activ
 echo "=== Config ==="
 python3 -c "import json; d=json.load(open('/opt/hysteria/config-v1.json')); print('Auth:', d['auth_str'], '| OBFS:', d['obfs'], '| Listen:', d['listen'])"
 
-echo "=== Menu ==="
-echo "Run menu: python3 /opt/hysteria/menu.py"
-
-if [ "$DASH" = "y" ]; then
-  echo "=== Dashboard install requires nginx + vnstat + conntrack + jq ==="
-  echo "Run on fresh VPS: apt-get install -y nginx vnstat conntrack jq"
-fi
-
-echo "=== DONE ==="
+echo "=== Launching Menu ==="
+sleep 1
+python3 /opt/hysteria/menu.py
