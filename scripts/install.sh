@@ -15,9 +15,8 @@ echo "=== Creating dirs ==="
 mkdir -p /opt/hysteria/certs /etc/hysteria/client
 chmod 755 /opt/hysteria /opt/hysteria/certs
 
-echo "=== Copying files ==="
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cp "$SCRIPT_DIR/menu.py" /opt/hysteria/menu.py
+echo "=== Downloading menu.py ==="
+wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/menu.py -O /opt/hysteria/menu.py
 chmod +x /opt/hysteria/menu.py
 
 echo "=== Generating certs ==="
