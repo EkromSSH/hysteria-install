@@ -8,7 +8,8 @@ set -e
 progress() { echo -e "\n\033[1;34m==>\033[0m \033[1;37m$1\033[0m"; }
 
 progress "Installing packages..."
-apt-get update -qq && apt-get install -y -qq wget curl openssl python3 2>/dev/null
+apt-get update -qq 2>/dev/null
+apt-get install -y wget curl openssl python3 2>&1 | tail -5
 
 progress "Downloading hysteria binary v1.3.5..."
 ARCH=$(uname -m)
