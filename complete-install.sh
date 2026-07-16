@@ -204,7 +204,7 @@ nginx -t 2>/dev/null && systemctl restart nginx 2>/dev/null
 # ── Menu.py ──
 wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/menu.py -O /opt/hysteria/menu.py 2>/dev/null || true
 chmod +x /opt/hysteria/menu.py 2>/dev/null
-echo "alias showon='python3 /opt/hysteria/menu.py'" >> /root/.bashrc
+printf '#!/bin/bash\npython3 /opt/hysteria/menu.py\n' > /usr/local/bin/showon && chmod +x /usr/local/bin/showon
 
 # ── Summary ──
 echo ""
