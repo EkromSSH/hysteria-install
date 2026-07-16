@@ -11,10 +11,10 @@ echo -e "\n\033[1;34m==>\033[0m \033[1;37mIDA UDPHysteria Complete Installer\033
 read -p "Server IP: " SERVER_IP
 read -p "Port [36712]: " PORT
 PORT=${PORT:-36712}
-read -p "Auth [naman]: " AUTH
-AUTH=${AUTH:-naman}
-read -p "OBFS [adman]: " OBFS
-OBFS=${OBFS:-adman}
+read -p "Auth: " AUTH
+AUTH=${AUTH:-}
+read -p "OBFS: " OBFS
+OBFS=${OBFS:-}
 
 # ── Dependencies ──
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
