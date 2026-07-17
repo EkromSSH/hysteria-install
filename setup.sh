@@ -84,18 +84,7 @@ chmod +x /usr/local/bin/online-check.sh
 printf '[Unit]\nDescription=Online Check\n[Service]\nType=simple\nExecStart=/usr/local/bin/online-check.sh\n' > /etc/systemd/system/online-check.service
 printf '[Unit]\nDescription=Online Check Timer\n[Timer]\nOnBootSec=10\nOnUnitActiveSec=10\n[Install]\nWantedBy=timers.target\n' > /etc/systemd/system/online-check.timer
 systemctl enable --now online-check.timer 2>/dev/null
-cat > /usr/local/bin/sysinfo.sh << 'E5'
-#!/bin/bash
-WWW="/home/vps/public_html/server"
-while true; do
-  UPTIME=$(uptime -p | sed 's/up //')
-  CPU=$(awk -v a="$(awk 'NR==1{print $2+$4}' /proc/stat)" -v b="$(awk 'NR==1{print $2+$4+$5}' /proc/stat)" 'BEGIN{printf "%d", a*100/b}')
-  RAM_U=$(free -m|awk '/^Mem:/{print $3}'); RAM_T=$(free -m|awk '/^Mem:/{print $2}')
-  DISK=$(df -h /|awk 'NR==2{print $3"/"$2}')
-  echo "[{\"uptime\":\"$UPTIME\",\"cpu_usage\":\"${CPU:-0}%\",\"ram_usage\":\"$RAM_U/${RAM_T}MB\",\"disk_usage\":\"$DISK\"}]" > "$WWW/sysinfo.json"
-  sleep 30
-done
-E5
+wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/sysinfo.sh -O /usr/local/bin/sysinfo.sh
 chmod +x /usr/local/bin/sysinfo.sh
 printf '[Unit]\nDescription=System Info\n[Service]\nType=simple\nExecStart=/usr/local/bin/sysinfo.sh\nRestart=on-failure\n' > /etc/systemd/system/sysinfo.service
 systemctl enable --now sysinfo 2>/dev/null
