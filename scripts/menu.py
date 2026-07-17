@@ -417,12 +417,13 @@ def update_dashboard():
             ("scripts/online-check.sh", "/usr/local/bin/online-check.sh"),
             ("scripts/sysinfo.sh", "/usr/local/bin/sysinfo.sh"),
             ("scripts/vnstat-traffic.sh", "/usr/local/bin/vnstat-traffic.sh"),
+            ("scripts/menu.py", "/opt/hysteria/menu.py"),
         ]:
             url = f"https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/{src}"
             subprocess.run(f"curl -sL {url} -o {dst}", shell=True, capture_output=True,timeout=10)
-        subprocess.run("chmod +x /usr/local/bin/online-check.sh /usr/local/bin/sysinfo.sh /usr/local/bin/vnstat-traffic.sh", shell=True, capture_output=True,timeout=5)
+        subprocess.run("chmod +x /usr/local/bin/online-check.sh /usr/local/bin/sysinfo.sh /usr/local/bin/vnstat-traffic.sh /opt/hysteria/menu.py", shell=True, capture_output=True,timeout=5)
         subprocess.run("systemctl restart online-check sysinfo vnstat-traffic", shell=True, capture_output=True,timeout=10)
-        bput(f"  {G}\u2705{NC} Updated!")
+        bput(f"  {G}\u2705{NC} Updated! Restart menu to apply")
     except Exception as e: bput(f"{R}\u274C{NC} {e}")
     bsep(); bot(); print(); time.sleep(2)
 
