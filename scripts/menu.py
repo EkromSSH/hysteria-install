@@ -190,7 +190,7 @@ def show_menu():
     menu_row("05","📜","View Logs","13","📺","Web Dashboard")
     menu_row("06","🔍","System Info","14","💾","Setup Swap")
     menu_row("07","📈","Traffic Stats","15","🎯","Change Limit")
-    menu_row("08","🐛","Debug Log","16","📡","Update Dash")
+    menu_row("08","🐛","Debug Log","16","📡","Update All")
     menu_row("17","🗑","Uninstall","","","")
     menu_row("00","🚪","Exit","","","")
     bput("")
@@ -409,10 +409,11 @@ def change_limit():
     bsep(); bot(); print(); time.sleep(2)
 
 def update_dashboard():
-    os.system("clear"); print(); box(); center(f"{G}\u21bb{NC} {BD}Update Dashboard{NC}"); bsep()
+    os.system("clear"); print(); box(); center(f"{G}\u21bb{NC} {BD}Update Scripts{NC}"); bsep()
     bput(f"  {D}Updating files...{NC}")
     try:
         for src, dst in [
+            ("setup.sh", "/tmp/ida-install.sh"),
             ("web/index.html", f"{WEB_DIR}/index.html"),
             ("scripts/online-check.sh", "/usr/local/bin/online-check.sh"),
             ("scripts/sysinfo.sh", "/usr/local/bin/sysinfo.sh"),
