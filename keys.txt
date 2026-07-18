@@ -1,0 +1,7 @@
+# IDA UDPHysteria License Keys
+# Master keys (always valid)
+MASTER-IDAVPN-8888
+MASTER-IDAVPN-9999
+# Customer keys
+IDA-AAAA-BBBB-CCCC
+IDA-DDDD-EEEE-FFFF
