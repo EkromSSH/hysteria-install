@@ -18,12 +18,12 @@ bash <(curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main
 
 - ✅ Auto-detect Server IP (press Enter to accept)
 - ✅ Fix apt lock automatically (retry 3 times)
-- ✅ Nginx 403 fix (`chmod o+x /home/vps`)
+- ✅ Nginx 403 fix
 - ✅ Downloads latest scripts from GitHub after install
 - ✅ Auto-update dashboard & scripts every 6 hours (cron)
 - ✅ Port hopping 10000-65000 (bypass ISP throttle)
 - ✅ Dashboard with CPU, RAM, Traffic, Online users
-- ✅ Hysteria v1.3.5 (UDP only, fastest protocol)
+- ✅ Hysteria v1.3.5 (UDP only)
 
 ## 📋 Menu
 
@@ -42,10 +42,7 @@ showon
   "auth_str": "idavpn",
   "up_mbps": 50,
   "down_mbps": 100,
-  "insecure": true,
-  "recv_window_conn": 196608,
-  "recv_window": 491520,
-  "disable_mtu_discovery": true
+  "insecure": true
 }
 ```
 
