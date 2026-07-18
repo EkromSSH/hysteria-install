@@ -56,8 +56,6 @@ cat > /opt/hysteria/config-v1.json << EOF
   "down_mbps": 1000,
   "obfs": "${OBFS}",
   "auth_str": "${AUTH}",
-  "recv_window_conn": 20971520,
-  "recv_window_client": 41943040,
   "disable_mtu_discovery": false
 }
 EOF
