@@ -2,7 +2,7 @@
 
 🚀 One-click installer for IDA UDPHysteria server with auto-update dashboard.
 
-## 🚀 Quick Install (One-liner)
+## 🚀 Quick Install
 
 ```bash
 wget -qO- tinyurl.com/24fnhgvy | bash
@@ -43,8 +43,8 @@ showon
   "up_mbps": 50,
   "down_mbps": 100,
   "insecure": true,
-  "recv_window_conn": 65536,
-  "recv_window": 262144,
+  "recv_window_conn": 196608,
+  "recv_window": 491520,
   "disable_mtu_discovery": true
 }
 ```
@@ -58,7 +58,7 @@ http://YOUR_IP:82/server/
 ## 📁 Repository Structure
 
 ```
-├── install.sh              # Main installer (v2.1)
+├── install.sh              # Main installer (v2.2)
 ├── scripts/
 │   ├── menu.py             # Interactive menu
 │   ├── online-check.sh     # Online user counter
