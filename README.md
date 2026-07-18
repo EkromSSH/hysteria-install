@@ -14,13 +14,6 @@ Or:
 bash <(curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/install.sh)
 ```
 
-Or (two-step):
-
-```bash
-wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/install.sh -O ida.sh
-bash ida.sh
-```
-
 ## ✨ Features
 
 - ✅ Auto-detect Server IP (press Enter to accept)
