@@ -40,9 +40,22 @@ showon
   "server": "YOUR_IP:10000-50000",
   "obfs": "idavpn",
   "auth_str": "idavpn",
-  "up_mbps": 50,
+  "up_mbps": 100,
   "down_mbps": 100,
-  "insecure": true
+  "retry": 3,
+  "retry_interval": 1,
+  "socks5": {
+    "listen": "127.0.0.1:1080"
+  },
+  "http": {
+    "listen": "127.0.0.1:8989"
+  },
+  "insecure": true,
+  "lazy_start": true,
+  "ca": "",
+  "recv_window_conn": 196608,
+  "recv_window": 491520,
+  "disable_mtu_discovery": true
 }
 ```
 
