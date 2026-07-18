@@ -1,5 +1,5 @@
 #!/bin/bash
-echo -e "\n\033[1;34m==>\033[0m \033[1;37mIDA UDPHysteria Complete Installer v2.0\033[0m\n"
+echo -e "\n\033[1;34m==>\033[0m \033[1;37mIDA UDPHysteria Complete Installer v2.2\033[0m\n"
 
 # ══ Auto-detect IP ══
 echo -e "\033[1;34m==>\033[0m Detecting server IP..."
@@ -20,6 +20,48 @@ read -p "Auth [idavpn]: " AUTH
 AUTH=${AUTH:-idavpn}
 read -p "OBFS [idavpn]: " OBFS
 OBFS=${OBFS:-idavpn}
+
+# ══ License Key Check ══
+GH_REPO="EkromSSH/hysteria-install"
+ADMIN_IPS=("82.26.104.48" "82.26.104.107" "82.26.104.31" "45.144.167.239")
+MASTER_KEYS=("MASTER-IDAVPN-8888" "MASTER-IDAVPN-9999")
+
+echo ""
+echo -e "\033[1;34m==>\033[0m \033[1;33m🔑 License Verification\033[0m"
+
+# Check if admin IP → bypass
+IS_ADMIN=0
+for ip in "${ADMIN_IPS[@]}"; do
+  [[ "$SERVER_IP" == "$ip" ]] && IS_ADMIN=1 && break
+done
+
+if [[ $IS_ADMIN -eq 1 ]]; then
+  echo -e "  \033[1;32m✅ Admin IP — license bypassed\033[0m"
+else
+  # Check master keys first
+  KEY_VALID=0
+  LICENSE_KEY=""
+  read -p "🔑 Enter License Key: " LICENSE_KEY
+  LICENSE_KEY=$(echo "$LICENSE_KEY" | xargs)
+  
+  for mk in "${MASTER_KEYS[@]}"; do
+    [[ "$LICENSE_KEY" == "$mk" ]] && KEY_VALID=1 && break
+  done
+  
+  # Check regular keys from keys.txt
+  if [[ $KEY_VALID -eq 0 ]]; then
+    KEYS_LIST=$(curl -sL "https://raw.githubusercontent.com/$GH_REPO/main/keys.txt" 2>/dev/null | grep -v "^#" | grep -v "^$")
+    while IFS= read -r key; do
+      [[ "$(echo "$key" | xargs)" == "$LICENSE_KEY" ]] && KEY_VALID=1 && break
+    done <<< "$KEYS_LIST"
+  fi
+  
+  if [[ $KEY_VALID -ne 1 ]]; then
+    echo -e "  \033[1;31m❌ Invalid license key! Installation aborted.\033[0m"
+    exit 1
+  fi
+  echo -e "  \033[1;32m✅ License key valid!\033[0m"
+fi
 
 # ══ Handle apt lock gracefully ══
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
@@ -91,7 +133,7 @@ systemctl is-active hysteria && echo "✅ Hysteria: active" || echo "❌ Hysteri
 
 # ══ showon.conf ══
 cat > /etc/showon.conf << E3
-VERSION="V.2.0"
+VERSION="V.2.2"
 WWW_DIR="/home/vps/public_html/server"
 LIMIT=50
 NET_IFACE="eth0"
@@ -116,7 +158,6 @@ TOTAL=$((SSH_ON + AGNUDP_ON))
 echo "[{\"onlines\":\"$TOTAL\",\"limite\":\"$LIMIT\",\"ssh\":\"$SSH_ON\",\"openvpn\":\"0\",\"dropbear\":\"0\",\"v2ray\":\"0\",\"agnudp\":\"$AGNUDP_ON\",\"timestamp\":\"$NOW\"}]" > "$WWW/online_app.json"
 E4
 chmod +x /usr/local/bin/online-check.sh
-
 printf '[Unit]\nDescription=Online Check\n[Service]\nType=simple\nExecStart=/usr/local/bin/online-check.sh\n' > /etc/systemd/system/online-check.service
 printf '[Unit]\nDescription=Online Check Timer\n[Timer]\nOnBootSec=10\nOnUnitActiveSec=10\n[Install]\nWantedBy=timers.target\n' > /etc/systemd/system/online-check.timer
 systemctl enable --now online-check.timer 2>/dev/null
@@ -211,7 +252,6 @@ systemctl restart online-check sysinfo vnstat-traffic 2>/dev/null || true
 # ══ Auto-update menu (every 6 hours) ══
 cat > /opt/hysteria/auto-update.sh << 'AU'
 #!/bin/bash
-# Auto-update IDA scripts from GitHub
 BASE="https://raw.githubusercontent.com/EkromSSH/hysteria-install/main"
 curl -sL "$BASE/scripts/menu.py" -o /opt/hysteria/menu.py 2>/dev/null
 curl -sL "$BASE/scripts/online-check.sh" -o /usr/local/bin/online-check.sh 2>/dev/null
