@@ -37,25 +37,27 @@ apt-get install -y wget curl openssl nginx vnstat conntrack jq python3 iptables-
 echo -e "\n\033[1;34m==>\033[0m Downloading Hysteria v1.3.5..."
 wget -q https://github.com/apernet/hysteria/releases/download/v1.3.5/hysteria-linux-amd64 -O /usr/local/bin/hysteria
 chmod +x /usr/local/bin/hysteria
-mkdir -p /opt/hysteria/certs /home/vps/public_html/server
+mkdir -p /etc/hysteria /home/vps/public_html/server
 chmod o+x /home/vps 2>/dev/null
 
 # ══ Generate certificates ══
 echo -e "\n\033[1;34m==>\033[0m Generating certificates..."
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /opt/hysteria/certs/server.key -out /opt/hysteria/certs/server.crt -subj "/C=TH/ST=Bangkok/L=Bangkok/O=IDA VPN/CN=${SERVER_IP}" 2>/dev/null
-chmod 600 /opt/hysteria/certs/server.key
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/hysteria/server.key -out /etc/hysteria/server.crt -subj "/C=TH/ST=Bangkok/L=Bangkok/O=IDA VPN/CN=${SERVER_IP}" 2>/dev/null
+chmod 600 /etc/hysteria/server.key
 
 # ══ Config ══
 cat > /opt/hysteria/config-v1.json << EOF
 {
   "listen": ":${PORT}",
   "protocol": "udp",
-  "cert": "/opt/hysteria/certs/server.crt",
-  "key": "/opt/hysteria/certs/server.key",
+  "cert": "/etc/hysteria/server.crt",
+  "key": "/etc/hysteria/server.key",
   "up_mbps": 1000,
   "down_mbps": 1000,
   "obfs": "${OBFS}",
   "auth_str": "${AUTH}",
+  "recv_window_conn": 20971520,
+  "recv_window_client": 41943040,
   "disable_mtu_discovery": false
 }
 EOF
