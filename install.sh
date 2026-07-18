@@ -199,14 +199,31 @@ wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts
 chmod +x /opt/hysteria/menu.py 2>/dev/null
 printf '#!/bin/bash\npython3 /opt/hysteria/menu.py\n' > /usr/local/bin/showon && chmod +x /usr/local/bin/showon
 
+# ══ Fresh update: download latest scripts from GitHub ══
+echo -e "\n\033[1;34m==>\033[0m Updating to latest scripts..."
+curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/web/index.html -o /home/vps/public_html/server/index.html 2>/dev/null
+curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/online-check.sh -o /usr/local/bin/online-check.sh 2>/dev/null
+curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/sysinfo.sh -o /usr/local/bin/sysinfo.sh 2>/dev/null
+curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/vnstat-traffic.sh -o /usr/local/bin/vnstat-traffic.sh 2>/dev/null
+curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/menu.py -o /opt/hysteria/menu.py 2>/dev/null
+chmod +x /usr/local/bin/online-check.sh /usr/local/bin/sysinfo.sh /usr/local/bin/vnstat-traffic.sh /opt/hysteria/menu.py 2>/dev/null
+chown -R www-data:www-data /home/vps/public_html/server 2>/dev/null
+systemctl restart online-check sysinfo vnstat-traffic 2>/dev/null || true
+
 # ══ Auto-update menu (every 6 hours) ══
 cat > /opt/hysteria/auto-update.sh << 'AU'
 #!/bin/bash
 # Auto-update IDA scripts from GitHub
-curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/menu.py -o /opt/hysteria/menu.py 2>/dev/null
-chmod +x /opt/hysteria/menu.py 2>/dev/null
-curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/install.sh -o /tmp/ida-update.sh 2>/dev/null
-chmod +x /tmp/ida-update.sh 2>/dev/null
+BASE="https://raw.githubusercontent.com/EkromSSH/hysteria-install/main"
+curl -sL "$BASE/scripts/menu.py" -o /opt/hysteria/menu.py 2>/dev/null
+curl -sL "$BASE/scripts/online-check.sh" -o /usr/local/bin/online-check.sh 2>/dev/null
+curl -sL "$BASE/scripts/sysinfo.sh" -o /usr/local/bin/sysinfo.sh 2>/dev/null
+curl -sL "$BASE/scripts/vnstat-traffic.sh" -o /usr/local/bin/vnstat-traffic.sh 2>/dev/null
+curl -sL "$BASE/web/index.html" -o /home/vps/public_html/server/index.html 2>/dev/null
+curl -sL "$BASE/install.sh" -o /tmp/ida-update.sh 2>/dev/null
+chmod +x /opt/hysteria/menu.py /usr/local/bin/online-check.sh /usr/local/bin/sysinfo.sh /usr/local/bin/vnstat-traffic.sh /tmp/ida-update.sh 2>/dev/null
+chown -R www-data:www-data /home/vps/public_html/server 2>/dev/null
+systemctl restart online-check sysinfo vnstat-traffic 2>/dev/null || true
 AU
 chmod +x /opt/hysteria/auto-update.sh
 echo "0 */6 * * * root /opt/hysteria/auto-update.sh" > /etc/cron.d/ida-auto-update
