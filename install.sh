@@ -52,12 +52,10 @@ cat > /opt/hysteria/config-v1.json << EOF
   "protocol": "udp",
   "cert": "/etc/hysteria/server.crt",
   "key": "/etc/hysteria/server.key",
-  "up_mbps": 1000,
-  "down_mbps": 1000,
+  "up_mbps": 100,
+  "down_mbps": 100,
   "obfs": "${OBFS}",
   "auth_str": "${AUTH}",
-  "recv_window_conn": 20971520,
-  "recv_window_client": 41943040,
   "disable_mtu_discovery": false
 }
 EOF
