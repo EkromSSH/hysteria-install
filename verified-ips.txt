@@ -1,2 +1,5 @@
 # Verified IPs - auto-added on valid license key
-# 82.26.104.48
+82.26.104.48
+82.26.104.107
+82.26.104.31
+45.144.167.239
