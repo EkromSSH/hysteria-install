@@ -147,7 +147,7 @@ cat > /usr/local/bin/online-check.sh << 'E4'
 WWW="/home/vps/public_html/server"; LIMIT=50; AGN_PORT=36712
 [ -f /etc/showon.conf ] && . /etc/showon.conf
 mkdir -p "$WWW"; NOW=$(date +%s%3N)
-SSH_ON=$(ss -tn state established 2>/dev/null | grep -E ':22\s' | wc -l)
+SSH_ON=$(ps aux | grep 'sshd:' | grep -v 'listener\|grep\|root' | awk '{print $1}' | sort -u | wc -l)
 AGNUDP_ON=0
 [ -n "$AGN_PORT" ] && command -v conntrack >/dev/null 2>&1 && {
   SIP=$(ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}')
