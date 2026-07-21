@@ -238,9 +238,14 @@ E8
 nginx -t 2>/dev/null && systemctl restart nginx 2>/dev/null
 
 # ══ Download menu ══
-wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/menu.py -O /opt/hysteria/menu.py 2>/dev/null || true
-chmod +x /opt/hysteria/menu.py 2>/dev/null
-printf '#!/bin/bash\npython3 /opt/hysteria/menu.py\n' > /usr/local/bin/showon && chmod +x /usr/local/bin/showon
+if wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/menu.py -O /opt/hysteria/menu.py 2>/dev/null; then
+  chmod +x /opt/hysteria/menu.py
+  printf '#!/bin/bash\npython3 /opt/hysteria/menu.py\n' > /usr/local/bin/showon && chmod +x /usr/local/bin/showon
+else
+  echo "⚠️  Menu download failed. Run after internet is available:"
+  echo "   wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/menu.py -O /opt/hysteria/menu.py"
+  echo "   printf '#!/bin/bash\\npython3 /opt/hysteria/menu.py\\n' > /usr/local/bin/showon && chmod +x /usr/local/bin/showon"
+fi
 
 # ══ Fresh update: download latest scripts from GitHub ══
 echo -e "\n\033[1;34m==>\033[0m Updating to latest scripts..."
