@@ -73,7 +73,7 @@ AGNUDP_ON=0
 [ -n "$AGN_PORT" ] && command -v conntrack >/dev/null 2>&1 && {
   SIP=$(ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}')
   SNET=$(echo "$SIP" | cut -d. -f1-3)
-  ips=$(conntrack -L -p udp 2>/dev/null | grep "sport=${AGN_PORT}" | awk '{split($3,a,"="); print a[2]}' | sort -u)
+  ips=$(conntrack -L -p udp 2>/dev/null | grep "sport=${AGN_PORT}" | awk '{split($4,a,"="); print a[2]}' | sort -u)
   [ -n "$ips" ] && AGNUDP_ON=$(echo "$ips" | grep -vE "^${SIP}$|^127\.|^${SNET}\." | wc -l)
 }
 TOTAL=$((SSH_ON + AGNUDP_ON))
