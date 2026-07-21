@@ -98,7 +98,7 @@ cat > /opt/hysteria/config-v1.json << EOF
   "down_mbps": 100,
   "obfs": "${OBFS}",
   "auth_str": "${AUTH}",
-  "disable_mtu_discovery": false
+  "disable_mtu_discovery": true
 }
 EOF
 
@@ -151,8 +151,9 @@ SSH_ON=$(ss -tn state established 2>/dev/null | grep -E ':22\s' | wc -l)
 AGNUDP_ON=0
 [ -n "$AGN_PORT" ] && command -v conntrack >/dev/null 2>&1 && {
   SIP=$(ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}')
+  SNET=$(echo "$SIP" | cut -d. -f1-3)
   ips=$(conntrack -L -p udp 2>/dev/null | grep "sport=${AGN_PORT}" | grep -oP 'dst=\K[0-9.]+' | sort -u)
-  [ -n "$ips" ] && AGNUDP_ON=$(echo "$ips" | grep -vE "^${SIP}$|^127\." | wc -l)
+  [ -n "$ips" ] && AGNUDP_ON=$(echo "$ips" | grep -vE "^${SIP}$|^127\.|^${SNET}\." | wc -l)
 }
 TOTAL=$((SSH_ON + AGNUDP_ON))
 echo "[{\"onlines\":\"$TOTAL\",\"limite\":\"$LIMIT\",\"ssh\":\"$SSH_ON\",\"openvpn\":\"0\",\"dropbear\":\"0\",\"v2ray\":\"0\",\"agnudp\":\"$AGNUDP_ON\",\"timestamp\":\"$NOW\"}]" > "$WWW/online_app.json"
@@ -166,12 +167,15 @@ cat > /usr/local/bin/sysinfo.sh << 'E5'
 #!/bin/bash
 WWW="/home/vps/public_html/server"
 while true; do
+  C1=$(awk 'NR==1{print $2+$4+$5}' /proc/stat); I1=$(awk 'NR==1{print $2+$4}' /proc/stat)
+  sleep 1
+  C2=$(awk 'NR==1{print $2+$4+$5}' /proc/stat); I2=$(awk 'NR==1{print $2+$4}' /proc/stat)
+  CPU=$(awk -v u=$((I2-I1)) -v c=$((C2-C1)) 'BEGIN{if(c>0)printf "%d",u*100/c;else print 0}')
   UPTIME=$(uptime -p | sed 's/up //')
-  CPU=$(awk -v a="$(awk 'NR==1{print $2+$4}' /proc/stat)" -v b="$(awk 'NR==1{print $2+$4+$5}' /proc/stat)" 'BEGIN{printf "%d", a*100/b}')
   RAM_U=$(free -m|awk '/^Mem:/{print $3}'); RAM_T=$(free -m|awk '/^Mem:/{print $2}')
   DISK=$(df -h /|awk 'NR==2{print $3"/"$2}')
   echo "[{\"uptime\":\"$UPTIME\",\"cpu_usage\":\"${CPU:-0}%\",\"ram_usage\":\"$RAM_U/${RAM_T}MB\",\"disk_usage\":\"$DISK\"}]" > "$WWW/sysinfo.json"
-  sleep 30
+  sleep 29
 done
 E5
 chmod +x /usr/local/bin/sysinfo.sh

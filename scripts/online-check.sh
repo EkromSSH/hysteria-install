@@ -20,9 +20,10 @@ DB_ON=0; OVPN_ON=0; V2_ON=0; AGNUDP_ON=0
 
 if [[ -n "$AGN_PORT" ]] && command -v conntrack >/dev/null 2>&1; then
   SERVER_IP=$(ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}')
+  SUBNET=$(echo "$SERVER_IP" | cut -d. -f1-3)
   ips=$(conntrack -L -p udp 2>/dev/null | grep "sport=${AGN_PORT} " | grep -oP 'dst=\K[0-9.]+' | sort -u)
   if [[ -n "$ips" ]]; then
-    AGNUDP_ON=$(echo "$ips" | grep -vE "^${SERVER_IP}$|^127\." | wc -l)
+    AGNUDP_ON=$(echo "$ips" | grep -vE "^${SERVER_IP}$|^127\.|^${SUBNET}\." | wc -l)
   fi
 fi
 
