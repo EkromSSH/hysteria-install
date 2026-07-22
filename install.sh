@@ -11,15 +11,23 @@ AUTO_IP=$(echo "$AUTO_IP" | xargs)
 [ -z "$AUTO_IP" ] && AUTO_IP="0.0.0.0"
 echo -e "  \033[1;32mAuto-detect:\033[0m $AUTO_IP"
 echo -e "  \033[2m(Press Enter to accept auto-detect, or type custom IP)\033[0m"
-read -p "Server IP [$AUTO_IP]: " SERVER_IP < /dev/tty 2>/dev/null || SERVER_IP=""
+if [ -z "$SERVER_IP" ]; then
+  read -p "Server IP [$AUTO_IP]: " SERVER_IP
+fi
 SERVER_IP=$(echo "${SERVER_IP:-$AUTO_IP}" | xargs)
 
 # ══ Port / Auth / OBFS ══
-read -p "Port [36712]: " PORT < /dev/tty 2>/dev/null || PORT=""
+if [ -z "$PORT" ]; then
+  read -p "Port [36712]: " PORT
+fi
 PORT=${PORT:-36712}
-read -p "Auth [idavpn]: " AUTH < /dev/tty 2>/dev/null || AUTH=""
+if [ -z "$AUTH" ]; then
+  read -p "Auth [idavpn]: " AUTH
+fi
 AUTH=${AUTH:-idavpn}
-read -p "OBFS [idavpn]: " OBFS < /dev/tty 2>/dev/null || OBFS=""
+if [ -z "$OBFS" ]; then
+  read -p "OBFS [idavpn]: " OBFS
+fi
 OBFS=${OBFS:-idavpn}
 
 # ══ License Key Check ══
