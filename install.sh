@@ -33,7 +33,7 @@ echo -e "\033[1;34m==>\033[0m \033[1;33m🔑 License Verification\033[0m"
 # Check if admin IP → bypass
 IS_ADMIN=0
 for ip in "${ADMIN_IPS[@]}"; do
-  [[ "$SERVER_IP" == "$ip" ]] && IS_ADMIN=1 && break
+  [[ "$SERVER_IP" == "$ip" || "$AUTO_IP" == "$ip" ]] && IS_ADMIN=1 && break
 done
 
 if [[ $IS_ADMIN -eq 1 ]]; then
