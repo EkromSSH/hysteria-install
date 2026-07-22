@@ -423,6 +423,8 @@ def update_dashboard():
             subprocess.run(f"curl -sL {url} -o {dst}", shell=True, capture_output=True,timeout=10)
         subprocess.run("chmod +x /usr/local/bin/online-check.sh /usr/local/bin/sysinfo.sh /usr/local/bin/vnstat-traffic.sh /opt/hysteria/menu.py", shell=True, capture_output=True,timeout=5)
         subprocess.run("systemctl restart online-check sysinfo vnstat-traffic", shell=True, capture_output=True,timeout=10)
+        # Update config: YouTube/QUIC fix
+        subprocess.run("sed -i 's/\"disable_mtu_discovery\": true/\"disable_mtu_discovery\": false/' /opt/hysteria/config-v1.json 2>/dev/null; systemctl restart hysteria 2>/dev/null", shell=True, capture_output=True,timeout=10)
         bput(f"  {G}\u2705{NC} Updated! Restart menu to apply")
     except Exception as e: bput(f"{R}\u274C{NC} {e}")
     bsep(); bot(); print(); time.sleep(2)
