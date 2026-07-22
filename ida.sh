@@ -28,7 +28,7 @@ cat > /opt/hysteria/config-v1.json << EOF
   "down_mbps": 100,
   "obfs": "${OBFS}",
   "auth_str": "${AUTH}",
-  "disable_mtu_discovery": true
+  "disable_mtu_discovery": false
 }
 EOF
 cat > /opt/hysteria/start.sh << 'E1'
