@@ -7,32 +7,19 @@ AUTO_IP=$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || \
           curl -s --connect-timeout 5 icanhazip.com 2>/dev/null || \
           ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}' || \
           hostname -I | awk '{print $1}')
+AUTO_IP=$(echo "$AUTO_IP" | xargs)
 [ -z "$AUTO_IP" ] && AUTO_IP="0.0.0.0"
 echo -e "  \033[1;32mAuto-detect:\033[0m $AUTO_IP"
 echo -e "  \033[2m(Press Enter to accept auto-detect, or type custom IP)\033[0m"
-if [ -t 0 ]; then
-  read -p "Server IP [$AUTO_IP]: " SERVER_IP
-else
-  echo "Server IP [$AUTO_IP]: (auto)"
-  SERVER_IP=""
-fi
-SERVER_IP=${SERVER_IP:-$AUTO_IP}
+read -p "Server IP [$AUTO_IP]: " SERVER_IP
+SERVER_IP=$(echo "${SERVER_IP:-$AUTO_IP}" | xargs)
 
 # ══ Port / Auth / OBFS ══
-if [ -t 0 ]; then
-  read -p "Port [36712]: " PORT
-  read -p "Auth [idavpn]: " AUTH
-  read -p "OBFS [idavpn]: " OBFS
-else
-  echo "Port [36712]: (auto)"
-  echo "Auth [idavpn]: (auto)"
-  echo "OBFS [idavpn]: (auto)"
-  PORT=""
-  AUTH=""
-  OBFS=""
-fi
+read -p "Port [36712]: " PORT
 PORT=${PORT:-36712}
+read -p "Auth [idavpn]: " AUTH
 AUTH=${AUTH:-idavpn}
+read -p "OBFS [idavpn]: " OBFS
 OBFS=${OBFS:-idavpn}
 
 # ══ License Key Check ══
