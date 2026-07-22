@@ -88,7 +88,7 @@ apt-get install -y wget curl openssl nginx vnstat conntrack jq python3 iptables-
 echo -e "\n\033[1;34m==>\033[0m Downloading Hysteria v1.3.5..."
 wget -q https://github.com/apernet/hysteria/releases/download/v1.3.5/hysteria-linux-amd64 -O /usr/local/bin/hysteria
 chmod +x /usr/local/bin/hysteria
-mkdir -p /etc/hysteria /home/vps/public_html/server
+mkdir -p /opt/hysteria /etc/hysteria /home/vps/public_html/server
 chmod o+x /home/vps 2>/dev/null
 
 # ══ Generate certificates ══
