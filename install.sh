@@ -10,15 +10,29 @@ AUTO_IP=$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || \
 [ -z "$AUTO_IP" ] && AUTO_IP="0.0.0.0"
 echo -e "  \033[1;32mAuto-detect:\033[0m $AUTO_IP"
 echo -e "  \033[2m(Press Enter to accept auto-detect, or type custom IP)\033[0m"
-read -p "Server IP [$AUTO_IP]: " SERVER_IP
+if [ -t 0 ]; then
+  read -p "Server IP [$AUTO_IP]: " SERVER_IP
+else
+  echo "Server IP [$AUTO_IP]: (auto)"
+  SERVER_IP=""
+fi
 SERVER_IP=${SERVER_IP:-$AUTO_IP}
 
 # ══ Port / Auth / OBFS ══
-read -p "Port [36712]: " PORT
+if [ -t 0 ]; then
+  read -p "Port [36712]: " PORT
+  read -p "Auth [idavpn]: " AUTH
+  read -p "OBFS [idavpn]: " OBFS
+else
+  echo "Port [36712]: (auto)"
+  echo "Auth [idavpn]: (auto)"
+  echo "OBFS [idavpn]: (auto)"
+  PORT=""
+  AUTH=""
+  OBFS=""
+fi
 PORT=${PORT:-36712}
-read -p "Auth [idavpn]: " AUTH
 AUTH=${AUTH:-idavpn}
-read -p "OBFS [idavpn]: " OBFS
 OBFS=${OBFS:-idavpn}
 
 # ══ License Key Check ══
