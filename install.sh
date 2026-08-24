@@ -12,21 +12,21 @@ AUTO_IP=$(echo "$AUTO_IP" | tr -d "\n\r" | xargs)
 echo -e "  \033[1;32mAuto-detect:\033[0m $AUTO_IP"
 echo -e "  \033[2m(Press Enter to accept auto-detect, or type custom IP)\033[0m"
 if [ -z "$SERVER_IP" ]; then
-  read -p "Server IP [$AUTO_IP]: " SERVER_IP
+  read -p "Server IP [$AUTO_IP]: " SERVER_IP < /dev/null
 fi
 SERVER_IP=$(echo "${SERVER_IP:-$AUTO_IP}" | tr -d "\n\r" | xargs)
 
 # ══ Port / Auth / OBFS ══
 if [ -z "$PORT" ]; then
-  read -p "Port [36712]: " PORT
+  read -p "Port [36712]: " PORT < /dev/null
 fi
 PORT=${PORT:-36712}
 if [ -z "$AUTH" ]; then
-  read -p "Auth [idavpn]: " AUTH
+  read -p "Auth [idavpn]: " AUTH < /dev/null
 fi
 AUTH=${AUTH:-idavpn}
 if [ -z "$OBFS" ]; then
-  read -p "OBFS [idavpn]: " OBFS
+  read -p "OBFS [idavpn]: " OBFS < /dev/null
 fi
 OBFS=${OBFS:-idavpn}
 
