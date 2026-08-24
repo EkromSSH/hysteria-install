@@ -426,6 +426,8 @@ def update_dashboard():
             url = f"https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/{src}"
             subprocess.run(f"curl -sL {url} -o {dst}", shell=True, capture_output=True,timeout=10)
         subprocess.run("chmod +x /usr/local/bin/online-check.sh /usr/local/bin/sysinfo.sh /usr/local/bin/vnstat-traffic.sh /opt/hysteria/menu.py", shell=True, capture_output=True,timeout=5)
+        subprocess.run("systemctl daemon-reload", shell=True, capture_output=True,timeout=10)
+        subprocess.run("systemctl enable --now online-check.service online-check.timer 2>/dev/null", shell=True, capture_output=True,timeout=10)
         subprocess.run("systemctl restart online-check sysinfo vnstat-traffic", shell=True, capture_output=True,timeout=10)
         # Update config: YouTube/QUIC fix
         subprocess.run("sed -i 's/\"disable_mtu_discovery\": true/\"disable_mtu_discovery\": false/' /opt/hysteria/config-v1.json 2>/dev/null; systemctl restart hysteria 2>/dev/null", shell=True, capture_output=True,timeout=10)
