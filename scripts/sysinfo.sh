@@ -11,9 +11,7 @@ while true; do
   I2=$(awk 'NR==1{print $2+$4}' /proc/stat)
   CPU=$(awk -v u=$((I2-I1)) -v c=$((C2-C1)) 'BEGIN{if(c>0)printf "%d",u*100/c;else print 0}')
 
-  RAW=$(uptime -p | sed 's/up //')
-UPTIME=$(echo "$RAW" | sed -E 's/[0-9]+ (minute|minutes),? ?//' | sed -E 's/[0-9]+ (hour|hours),? ?//')
-[ -z "$UPTIME" ] && UPTIME="$RAW"
+  UPTIME=$(uptime -p | sed 's/up //' | sed -E 's/[0-9]+ (minute|minutes),? ?//')
   RAM_U=$(free -m | awk '/^Mem:/{print $3}')
   RAM_T=$(free -m | awk '/^Mem:/{print $2}')
   DISK=$(df -h / | awk 'NR==2{print $3"/"$2}')
