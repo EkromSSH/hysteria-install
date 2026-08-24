@@ -6,7 +6,7 @@ WWW_DIR="$WWW_DIR_DEFAULT"
 LIMIT="$LIMIT_DEFAULT"
 AGN_PORT="36712"
 STATE="/tmp/agnudp_state"
-KEEP=300   # เก็บสถานะ IP ที่เห็นไว้ 300 วินาที (กัน idle หายเร็ว)
+KEEP=30   # เก็บสถานะ IP ที่เห็นไว้ 30 วินาที (เลิกต่อแล้วหายหลัง 30 วิ)
 
 if [[ -f "$CONF" ]]; then
   . "$CONF"
