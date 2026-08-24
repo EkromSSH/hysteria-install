@@ -31,17 +31,15 @@ fi
 OBFS=${OBFS:-idavpn}
 
 # ══ Handle apt lock gracefully ══
-# ข้าม sources.list ภายนอกทั้งหมด (ป้องกันค้าง reading package lists)
+# ย้าย sources.list.d ออกชั่วคราว (กันค้างตอน update) แล้วคืนค่าหลังติดตั้ง
 mkdir -p /etc/apt/backup-sources 2>/dev/null
-mv /etc/apt/sources.list.d/*.list /etc/apt/backup-sources/ 2>/dev/null
-
-# ข้าม sources.list ภายนอกทั้งหมด (ป้องกันค้าง)
-mkdir -p /etc/apt/backup-sources 2>/dev/null
-mv /etc/apt/sources.list.d/*.list /etc/apt/backup-sources/ 2>/dev/null
+if ls /etc/apt/sources.list.d/*.list >/dev/null 2>&1; then
+  mv /etc/apt/sources.list.d/*.list /etc/apt/backup-sources/ 2>/dev/null
+fi
 
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
 for i in 1 2 3; do
-  apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 2>&1 | tail -2 && break
+  apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 2>&1 | tail -2 && break
   echo "  apt busy or locked, clearing lock... ($i/3)"
   lsof /var/lib/dpkg/lock-frontend 2>/dev/null | awk 'NR>1{print $2}' | xargs -r kill 2>/dev/null
   rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock 2>/dev/null
@@ -49,6 +47,11 @@ for i in 1 2 3; do
   sleep 3
 done
 apt-get install -y -o Acquire::Retries=3 -o Acquire::http::Timeout=30 wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -2
+
+# คืนค่า sources.list.d
+if ls /etc/apt/backup-sources/*.list >/dev/null 2>&1; then
+  mv /etc/apt/backup-sources/*.list /etc/apt/sources.list.d/ 2>/dev/null
+fi
 
 # ══ Download Hysteria ══
 echo -e "\n\033[1;34m==>\033[0m Downloading Hysteria v1.3.5..."
