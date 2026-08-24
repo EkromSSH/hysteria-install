@@ -30,48 +30,6 @@ if [ -z "$OBFS" ]; then
 fi
 OBFS=${OBFS:-idavpn}
 
-# ══ License Key Check ══
-GH_REPO="EkromSSH/hysteria-install"
-ADMIN_IPS=("82.26.104.48" "82.26.104.107" "82.26.104.31" "45.144.167.239")
-MASTER_KEYS=("MASTER-IDAVPN-8888" "MASTER-IDAVPN-9999")
-
-echo ""
-echo -e "\033[1;34m==>\033[0m \033[1;33m🔑 License Verification\033[0m"
-
-# Check if admin IP → bypass
-IS_ADMIN=0
-for ip in "${ADMIN_IPS[@]}"; do
-  [[ "$SERVER_IP" == "$ip" || "$AUTO_IP" == "$ip" ]] && IS_ADMIN=1 && break
-done
-
-if [[ $IS_ADMIN -eq 1 ]]; then
-  echo -e "  \033[1;32m✅ Admin IP — license bypassed\033[0m"
-else
-  # Check master keys first
-  KEY_VALID=0
-  LICENSE_KEY=""
-  read -p "🔑 Enter License Key: " LICENSE_KEY
-  LICENSE_KEY=$(echo "$LICENSE_KEY" | xargs)
-  
-  for mk in "${MASTER_KEYS[@]}"; do
-    [[ "$LICENSE_KEY" == "$mk" ]] && KEY_VALID=1 && break
-  done
-  
-  # Check regular keys from keys.txt
-  if [[ $KEY_VALID -eq 0 ]]; then
-    KEYS_LIST=$(curl -sL "https://raw.githubusercontent.com/$GH_REPO/main/keys.txt" 2>/dev/null | grep -v "^#" | grep -v "^$")
-  fi
-  
-  if [[ $KEY_VALID -ne 1 ]]; then
-    echo -e "  \033[1;31m❌ Invalid license key! Installation aborted.\033[0m"
-    exit 1
-  fi
-  echo -e "  \033[1;32m✅ License key valid!\033[0m"
-fi
-
-# ข้าม PPA ภายนอกที่ต่อไม่ได้ (ป้องกันค้าง)
-rm -f /etc/apt/sources.list.d/ondrej-*.list /etc/apt/sources.list.d/vbernat-*.list 2>/dev/null
-
 # ══ Handle apt lock gracefully ══
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
 for i in 1 2 3; do
