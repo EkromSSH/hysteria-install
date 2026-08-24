@@ -69,17 +69,20 @@ else
   echo -e "  \033[1;32m✅ License key valid!\033[0m"
 fi
 
+# ข้าม PPA ภายนอกที่ต่อไม่ได้ (ป้องกันค้าง)
+rm -f /etc/apt/sources.list.d/ondrej-*.list /etc/apt/sources.list.d/vbernat-*.list 2>/dev/null
+
 # ══ Handle apt lock gracefully ══
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
 for i in 1 2 3; do
-  apt-get update -qq 2>/dev/null && break
+  apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 2>&1 | tail -2 && break
   echo "  apt busy or locked, clearing lock... ($i/3)"
   lsof /var/lib/dpkg/lock-frontend 2>/dev/null | awk 'NR>1{print $2}' | xargs -r kill 2>/dev/null
   rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock 2>/dev/null
   dpkg --configure -a 2>/dev/null
   sleep 3
 done
-apt-get install -y wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -2
+apt-get install -y -o Acquire::Retries=3 -o Acquire::http::Timeout=30 wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -2
 
 # ══ Download Hysteria ══
 echo -e "\n\033[1;34m==>\033[0m Downloading Hysteria v1.3.5..."
