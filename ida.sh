@@ -7,14 +7,14 @@ AUTO_IP=$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || \
           curl -s --connect-timeout 5 icanhazip.com 2>/dev/null || \
           ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}' || \
           hostname -I | awk '{print $1}')
-AUTO_IP=$(echo "$AUTO_IP" | xargs)
+AUTO_IP=$(echo "$AUTO_IP" | tr -d "\n\r" | xargs)
 [ -z "$AUTO_IP" ] && AUTO_IP="0.0.0.0"
 echo -e "  \033[1;32mAuto-detect:\033[0m $AUTO_IP"
 echo -e "  \033[2m(Press Enter to accept auto-detect, or type custom IP)\033[0m"
 if [ -z "$SERVER_IP" ]; then
   read -p "Server IP [$AUTO_IP]: " SERVER_IP
 fi
-SERVER_IP=$(echo "${SERVER_IP:-$AUTO_IP}" | xargs)
+SERVER_IP=$(echo "${SERVER_IP:-$AUTO_IP}" | tr -d "\n\r" | xargs)
 
 # ══ Port / Auth / OBFS ══
 if [ -z "$PORT" ]; then
