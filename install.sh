@@ -251,7 +251,6 @@ if [ -f /opt/hysteria/config-v1.json ]; then
   systemctl restart hysteria 2>/dev/null || true
 fi
 systemctl restart online-check sysinfo vnstat-traffic 2>/dev/null || true
-AU
 chmod +x /opt/hysteria/auto-update.sh
 echo "0 */6 * * * root /opt/hysteria/auto-update.sh" > /etc/cron.d/ida-auto-update
 
