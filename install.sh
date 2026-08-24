@@ -39,7 +39,7 @@ fi
 
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
 for i in 1 2 3; do
-  apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 2>&1 | tail -2 && break
+  timeout 90 apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 2>&1 | tail -2 && break
   echo "  apt busy or locked, clearing lock... ($i/3)"
   lsof /var/lib/dpkg/lock-frontend 2>/dev/null | awk 'NR>1{print $2}' | xargs -r kill 2>/dev/null
   rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock 2>/dev/null
