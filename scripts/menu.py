@@ -79,7 +79,7 @@ def get_status():
     try: return subprocess.run(["systemctl","is-active","hysteria"], capture_output=True,text=True,timeout=3).stdout.strip()
     except: return "inactive"
 def get_uptime():
-    try: return subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ", "")
+    try: x=subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ",""); import re; x=re.sub(r"[0-9]+ week[s]?,? ?","",x); x=re.sub(r"[0-9]+ minute[s]?,? ?","",x); x=x.strip().rstrip(",").strip(); return x
     except: return ""
 def count_ssh():
     try:
@@ -134,7 +134,11 @@ def get_vnstat_traffic():
     return 0, 0
 def get_sysinfo():
     info = {}
-    try: info["uptime"] = subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ", "")
+    try:
+            import re as _re
+            _u=subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ","")
+            _u=_re.sub(r"[0-9]+ minute[s]?,? ?","",_u); _u=_u.strip().rstrip(",").strip()
+            info["uptime"]=_u
     except: info["uptime"] = "N/A"
     try:
         r = subprocess.run("top -bn1 | awk '/Cpu\\(s\\)/ {print $8}'", shell=True, capture_output=True,text=True,timeout=3)
