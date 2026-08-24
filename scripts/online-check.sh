@@ -1,11 +1,12 @@
 #!/bin/bash
-set -u -o pipefail
 CONF="/etc/showon.conf"
 WWW_DIR_DEFAULT="/home/vps/public_html/server"
 LIMIT_DEFAULT=50
 WWW_DIR="$WWW_DIR_DEFAULT"
 LIMIT="$LIMIT_DEFAULT"
 AGN_PORT="36712"
+STATE="/tmp/agnudp_state"
+KEEP=300   # เก็บสถานะ IP ที่เห็นไว้ 300 วินาที (กัน idle หายเร็ว)
 
 if [[ -f "$CONF" ]]; then
   . "$CONF"
@@ -14,6 +15,7 @@ fi
 mkdir -p "$WWW_DIR"
 ONLINE_JSON="$WWW_DIR/online_app.json"
 NOW="$(date +%s%3N)"
+NOW_S=$((NOW/1000))
 
 SSH_ON=$(ps aux | grep 'sshd:' | grep -v 'listener\|grep\|root' | awk '{print $1}' | sort -u | wc -l)
 DB_ON=0; OVPN_ON=0; V2_ON=0; AGNUDP_ON=0
@@ -21,10 +23,21 @@ DB_ON=0; OVPN_ON=0; V2_ON=0; AGNUDP_ON=0
 if [[ -n "$AGN_PORT" ]] && command -v conntrack >/dev/null 2>&1; then
   SERVER_IP=$(ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}')
   SUBNET=$(echo "$SERVER_IP" | cut -d. -f1-3)
-  ips=$(conntrack -L -p udp 2>/dev/null | grep "sport=${AGN_PORT}" | grep -v "sport=443 " | sed "s/.* dst=\([0-9.]*\) sport=${AGN_PORT}.*/\1/" | sort -u)
-  if [[ -n "$ips" ]]; then
-    AGNUDP_ON=$(echo "$ips" | grep -vE "^${SERVER_IP}$|^127\.|^${SUBNET}\." | wc -l)
-  fi
+  ips=$(conntrack -L -p udp 2>/dev/null | grep "sport=${AGN_PORT}" | grep -v "sport=443 " | sed "s/.* dst=\([0-9.]*\) sport=${AGN_PORT}.*/\1/" | sort -u | grep -vE "^${SERVER_IP}$|^127\.|^${SUBNET}\.")
+  touch "$STATE" 2>/dev/null
+  # ลบรายการที่หมดอายุ (เกิน KEEP วินาที)
+  while IFS='|' read -r ip ts; do
+    [ -z "$ip" ] && continue
+    if [ $((NOW_S - ${ts:-0})) -gt $KEEP ]; then
+      sed -i "/^${ip}|/d" "$STATE" 2>/dev/null
+    fi
+  done < "$STATE"
+  # เพิ่ม/อัปเดต IP ที่เห็นรอบนี้
+  for ip in $ips; do
+    sed -i "/^${ip}|/d" "$STATE" 2>/dev/null
+    echo "${ip}|${NOW_S}" >> "$STATE"
+  done
+  AGNUDP_ON=$(wc -l < "$STATE" 2>/dev/null || echo 0)
 fi
 
 TOTAL=$(( SSH_ON + DB_ON + OVPN_ON + V2_ON + AGNUDP_ON ))
