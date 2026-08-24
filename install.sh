@@ -35,6 +35,10 @@ OBFS=${OBFS:-idavpn}
 mkdir -p /etc/apt/backup-sources 2>/dev/null
 mv /etc/apt/sources.list.d/*.list /etc/apt/backup-sources/ 2>/dev/null
 
+# ข้าม sources.list ภายนอกทั้งหมด (ป้องกันค้าง)
+mkdir -p /etc/apt/backup-sources 2>/dev/null
+mv /etc/apt/sources.list.d/*.list /etc/apt/backup-sources/ 2>/dev/null
+
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
 for i in 1 2 3; do
   apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 2>&1 | tail -2 && break
