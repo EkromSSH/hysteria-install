@@ -61,7 +61,6 @@ else
   if [[ $KEY_VALID -eq 0 ]]; then
     KEYS_LIST=$(curl -sL "https://raw.githubusercontent.com/$GH_REPO/main/keys.txt" 2>/dev/null | grep -v "^#" | grep -v "^$")
     while IFS= read -r key; do
-      [[ "$(echo "$key" | xargs)" == "$LICENSE_KEY" ]] && KEY_VALID=1 && break
     done <<< "$KEYS_LIST"
   fi
   
