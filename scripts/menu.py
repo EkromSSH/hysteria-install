@@ -95,13 +95,9 @@ def get_uptime():
     except: return ""
 def count_ssh():
     try:
-        # นับ SSH session จริง (ตัด priv/notty) + fallback ss
-        r = subprocess.run("ps -eo comm,args | grep '[s]shd:' | grep -v 'sshd: .*priv' | grep -v 'sshd: .*notty' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
-        n = int(r.stdout.strip() or 0)
-        if n == 0:
-            r2 = subprocess.run("ss -tn state established 2>/dev/null | grep -E ':22\\s' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
-            n = int(r2.stdout.strip() or 0)
-        return n
+        # นับเฉพาะคนล็อกอินสำเร็จแล้วจริงๆ (มี @ ใน session) ไม่นับ bot/priv/notty/net
+        r = subprocess.run("ps -eo args | grep -E '[s]shd: [^ ]+@' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
+        return int(r.stdout.strip() or 0)
     except: return 0
 def count_dropbear():
     try:
