@@ -14,6 +14,8 @@ WWW_DIR_DEFAULT="/home/vps/public_html/server"
 DEBUG_LOG_DEFAULT="/var/log/showon-debug.log"
 LIMIT_DEFAULT=200
 NET_IFACE_DEFAULT="eth0"
+STATE_DEFAULT="/tmp/agnudp_state"
+KEEP=30   # เก็บสถานะ IP UDP ที่เห็นไว้ 30 วินาที (เลิกต่อแล้วหายหลัง 30 วิ)
 
 WWW_DIR="$WWW_DIR_DEFAULT"
 DEBUG_LOG="$DEBUG_LOG_DEFAULT"
@@ -89,14 +91,20 @@ LOCAL_IPS_REGEX="$(local_ipv4_regex || true)"
 #  1) SSH Online (Universal, Accurate)
 # ===============================================
 count_ssh() {
-  # นับเฉพาะคนที่ล็อกอินสำเร็จแล้วจริงๆ (มี pts/tty) ไม่นับ bot สแกน/priv/notty/accepted
-  SSH_ON=$(ps -eo args \
-    | grep "[s]shd: .*@" \
-    | grep -E "pts|tty" \
+  # นับ SSH session จริง (ตัด priv/notty) + fallback ss ถ้า ps ได้ 0
+  SSH_ON=$(ps -eo comm,args \
+    | grep "[s]shd:" \
+    | grep -v "sshd: .*priv" \
+    | grep -v "sshd: .*notty" \
     | wc -l)
+  if [[ "$SSH_ON" -eq 0 ]]; then
+    SSH_ON=$(ss -tn state established 2>/dev/null \
+      | grep -E ":22\s" \
+      | wc -l)
+  fi
 }
 count_ssh
-log_debug "SSH sessions (logged-in): $SSH_ON"
+log_debug "SSH sessions: $SSH_ON"
 
 # ===============================================
 #  2) Dropbear Online (Accurate via ps)
@@ -104,7 +112,9 @@ log_debug "SSH sessions (logged-in): $SSH_ON"
 DB_ON=0
 
 count_dropbear() {
-  DB_ON=$(expr $(ps aux | grep '[d]ropbear' | wc -l) - 1)
+  local n
+  n=$(ps aux | grep '[d]ropbear' | wc -l)
+  DB_ON=$(( n - 1 ))
   [[ $DB_ON -lt 0 ]] && DB_ON=0
   log_debug "Dropbear accurate count: $DB_ON"
 }
@@ -212,7 +222,21 @@ count_agnudp() {
     return
   fi
 
-  local raw filtered
+  local raw filtered now now_s
+  now=$(date +%s%3N); now_s=$((now/1000))
+  STATE="${STATE:-$STATE_DEFAULT}"
+  touch "$STATE" 2>/dev/null
+
+  # ลบรายการที่หมดอายุ (เกิน KEEP วินาที)
+  if [[ -f "$STATE" ]]; then
+    while IFS='|' read -r ip ts; do
+      [ -z "$ip" ] && continue
+      if [ $((now_s - ${ts:-0})) -gt $KEEP ]; then
+        sed -i "/^${ip}|/d" "$STATE" 2>/dev/null
+      fi
+    done < "$STATE"
+  fi
+
   raw="$(
     conntrack -L -p udp 2>/dev/null \
       | grep -F "dport=${AGN_PORT}" 2>/dev/null \
@@ -228,6 +252,10 @@ count_agnudp() {
 
   if [[ -z "$raw" ]]; then
     AGNUDP_ON=0
+    # ถ้ายังมีใน state (คนเลิกต่อไม่นาน) ให้นับจาก state
+    if [[ -f "$STATE" ]]; then
+      AGNUDP_ON=$(grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\|[0-9]+$' "$STATE" 2>/dev/null || echo 0)
+    fi
     return
   fi
 
@@ -241,8 +269,14 @@ count_agnudp() {
     filtered="$(echo "$filtered" | grep -Ev "$LOCAL_IPS_REGEX" 2>/dev/null || true)"
   fi
 
-  if [[ -n "$filtered" ]]; then
-    AGNUDP_ON="$(echo "$filtered" | sort -u | wc -l)"
+  # เขียน IP ที่เห็นรอบนี้ลง state (อัปเดต timestamp)
+  for ip in $filtered; do
+    sed -i "/^${ip}|/d" "$STATE" 2>/dev/null
+    echo "${ip}|${now_s}" >> "$STATE"
+  done
+
+  if [[ -f "$STATE" ]]; then
+    AGNUDP_ON=$(grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\|[0-9]+$' "$STATE" 2>/dev/null || echo 0)
   else
     AGNUDP_ON=0
   fi
