@@ -79,7 +79,19 @@ def get_status():
     try: return subprocess.run(["systemctl","is-active","hysteria"], capture_output=True,text=True,timeout=3).stdout.strip()
     except: return "inactive"
 def get_uptime():
-    try: x=subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ",""); import re; x=re.sub(r"[0-9]+ week[s]?,? ?","",x); x=x.strip().rstrip(",").strip(); return x
+    try:
+        raw=subprocess.run("uptime -p", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().replace("up ","")
+        import re
+        wk=re.search(r'([0-9]+) week', raw); wk=int(wk.group(1)) if wk else 0
+        rest=re.sub(r'[0-9]+ week[s]?,? ?','',raw)
+        dy=re.search(r'([0-9]+) day', rest); dy=int(dy.group(1)) if dy else 0
+        totald=dy + wk*7
+        if totald>0:
+            rest=re.sub(r'[0-9]+ day[s]?,? ?','',rest).replace(',','').strip()
+            x=f"{totald}D " + re.sub(r'([0-9]+) hour[s]?',r'\1H',re.sub(r'([0-9]+) minute[s]?',r'\1M',rest)).strip()
+        else:
+            x=re.sub(r'([0-9]+) hour[s]?',r'\1H',re.sub(r'([0-9]+) minute[s]?',r'\1M',rest)).strip()
+        return x
     except: return ""
 def count_ssh():
     try:
