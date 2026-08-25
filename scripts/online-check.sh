@@ -89,21 +89,14 @@ LOCAL_IPS_REGEX="$(local_ipv4_regex || true)"
 #  1) SSH Online (Universal, Accurate)
 # ===============================================
 count_ssh() {
-  SSH_ON=$(ps -eo comm,args \
-    | grep "[s]shd:" \
-    | grep -v "sshd: .*priv" \
-    | grep -v "sshd: .*notty" \
+  # นับเฉพาะคนที่ล็อกอินสำเร็จแล้วจริงๆ (มี pts/tty) ไม่นับ bot สแกน/priv/notty/accepted
+  SSH_ON=$(ps -eo args \
+    | grep "[s]shd: .*@" \
+    | grep -E "pts|tty" \
     | wc -l)
-
-  # หากขึ้นค้าง 0 แต่ ss -tn ยังเห็น connection → fallback
-  if [[ "$SSH_ON" -eq 0 ]]; then
-    SSH_ON=$(ss -tn state established 2>/dev/null \
-      | grep -E ":22\s" \
-      | wc -l)
-  fi
 }
 count_ssh
-log_debug "SSH sessions: $SSH_ON"
+log_debug "SSH sessions (logged-in): $SSH_ON"
 
 # ===============================================
 #  2) Dropbear Online (Accurate via ps)

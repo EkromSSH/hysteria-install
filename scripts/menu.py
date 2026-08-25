@@ -95,14 +95,9 @@ def get_uptime():
     except: return ""
 def count_ssh():
     try:
-        # นับ SSH session จริง (เหมือน TspKchn) ตัด priv/notty
-        r = subprocess.run("ps -eo comm,args | grep '[s]shd:' | grep -v 'sshd: .*priv' | grep -v 'sshd: .*notty' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
-        n = int(r.stdout.strip() or 0)
-        if n == 0:
-            # fallback: นับ connection พอร์ต 22
-            r2 = subprocess.run("ss -tn state established 2>/dev/null | grep -E ':22\\s' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
-            n = int(r2.stdout.strip() or 0)
-        return n
+        # นับเฉพาะคนที่ล็อกอินสำเร็จแล้วจริงๆ (มี pts/tty) ไม่นับ bot สแกน/priv/notty/accepted
+        r = subprocess.run("ps -eo args | grep '[s]shd: .*@' | grep -E 'pts|tty' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
+        return int(r.stdout.strip() or 0)
     except: return 0
 def count_v2ray():
     return 0
