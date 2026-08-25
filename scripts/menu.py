@@ -103,12 +103,10 @@ def count_ssh():
                 if line.strip().startswith("MY_IPS"):
                     myips += " " + line.split("=",1)[1].strip().strip('"')
         ips = set()
-        out = subprocess.run("ss -tn state established 2>/dev/null | grep ':22'", shell=True, capture_output=True,text=True,timeout=3).stdout
+        out = subprocess.run("ss -tnp state established 2>/dev/null", shell=True, capture_output=True,text=True,timeout=3).stdout
         for line in out.strip().splitlines():
-            # หา IP source (คอลัมน์สุดท้ายก่อน users)
-            m = re.search(r'(\d+\.\d+\.\d+\.\d+):\d+\s+users:', line)
-            if not m:
-                m = re.search(r'(\d+\.\d+\.\d+\.\d+):\d+\s*$', line)
+            if ":22" in line: continue   # เว้นพอร์ต 22 ไม่จับ
+            m = re.search(r'\d+\.\d+\.\d+\.\d+:\d+\s+(\d+\.\d+\.\d+\.\d+):\d+', line)
             if not m: continue
             ip = m.group(1)
             if ip == srv or ip.startswith("127."): continue
