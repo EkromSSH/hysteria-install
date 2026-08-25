@@ -113,15 +113,6 @@ def count_udp():
                 ips.add(ip)
         return len(ips)
     except: return 0
-def read_online():
-    try:
-        p = "/home/vps/public_html/server/online_app.json"
-        if not os.path.exists(p): return None
-        d = json.load(open(p))
-        if d and isinstance(d, list): d = d[0]
-        return d
-    except: return None
-
 def get_hysteria_ips():
     p, _, _ = read_config()
     ips = {}
@@ -178,12 +169,7 @@ def is_web_running():
 def show_menu():
     p, a, o = read_config(); ip = get_ip(); st = get_status()
     u = get_uptime()
-    oj = read_online()
-    if oj:
-        ssh = int(oj.get("ssh",0) or 0); v2r = int(oj.get("v2ray",0) or 0)
-        ovpn = int(oj.get("openvpn",0) or 0); udp = int(oj.get("agnudp",0) or 0)
-    else:
-        ssh = count_ssh(); v2r = count_v2ray(); ovpn = count_openvpn(); udp = count_udp()
+    ssh = count_ssh(); v2r = count_v2ray(); ovpn = count_openvpn(); udp = count_udp()
     total = ssh + v2r + ovpn + udp
     stt = f"{G}ONLINE{NC}" if st=="active" else f"{R}OFFLINE{NC}"
     web_st = f"{G}ON{NC}" if is_web_running() else f"{R}OFF{NC}"
