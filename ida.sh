@@ -131,7 +131,7 @@ echo "[{\"onlines\":\"$TOTAL\",\"limite\":\"$LIMIT\",\"ssh\":\"$SSH_ON\",\"openv
 E4
 chmod +x /usr/local/bin/online-check.sh
 printf '[Unit]\nDescription=Online Check\n[Service]\nType=simple\nExecStart=/usr/local/bin/online-check.sh\nRestart=always\nRestartSec=5\n[Install]\nWantedBy=multi-user.target\n' > /etc/systemd/system/online-check.service
-printf '[Unit]\nDescription=Online Check Timer\n[Timer]\nOnBootSec=10\nOnUnitActiveSec=30\n[Install]\nWantedBy=timers.target\n' > /etc/systemd/system/online-check.timer
+printf '[Unit]\nDescription=Online Check Timer\n[Timer]\nOnBootSec=10\nOnUnitActiveSec=60\n[Install]\nWantedBy=timers.target\n' > /etc/systemd/system/online-check.timer
 systemctl daemon-reload 2>/dev/null; systemctl enable --now online-check.service online-check.timer 2>/dev/null
 
 cat > /usr/local/bin/sysinfo.sh << 'E5'
