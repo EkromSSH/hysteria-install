@@ -11,8 +11,18 @@ while true; do
   I2=$(awk 'NR==1{print $2+$4}' /proc/stat)
   CPU=$(awk -v u=$((I2-I1)) -v c=$((C2-C1)) 'BEGIN{if(c>0)printf "%d",u*100/c;else print 0}')
 
-  RAW=$(uptime -p | sed 's/up //' | sed -E 's/[0-9]+ week[s]?,? ?//')
-UPTIME=$(echo "$RAW" | sed -E 's/([0-9]+) day[s]?/\1D/g; s/([0-9]+) hour[s]?/\1H/g; s/([0-9]+) minute[s]?/\1M/g; s/,//g; s/ +/ /g; s/^ //; s/ $//')
+  RAW=$(uptime -p | sed 's/up //')
+  WK=$(echo "$RAW" | grep -oE '[0-9]+ week' | grep -oE '[0-9]+'); WK=${WK:-0}
+  REST=$(echo "$RAW" | sed -E 's/[0-9]+ week[s]?,? ?//')
+  DAYS=$(echo "$REST" | grep -oE '[0-9]+ day' | grep -oE '[0-9]+'); DAYS=${DAYS:-0}
+  TOTALD=$(( DAYS + WK * 7 ))
+  if [ "$TOTALD" -gt 0 ]; then
+    REST="$(echo "$REST" | sed -E "s/[0-9]+ day[s]?//g; s/^,//; s/,//g")"
+    UPTIME="${TOTALD}D $(echo "$REST" | sed -E 's/([0-9]+) hour[s]?/\1H/g; s/([0-9]+) minute[s]?/\1M/g; s/^ //; s/ $//' | sed 's/^, //; s/,//g')"
+  else
+    UPTIME=$(echo "$REST" | sed -E "s/([0-9]+) hour[s]?/\1H/g; s/([0-9]+) minute[s]?/\1M/g; s/,//g; s/ +/ /g; s/^ //; s/ $//")
+  fi
+  UPTIME=$(echo "$UPTIME" | sed 's/^ //; s/ $//; s/  / /g')
   RAM_U=$(free -m | awk '/^Mem:/{print $3}')
   RAM_T=$(free -m | awk '/^Mem:/{print $2}')
   DISK=$(df -h / | awk 'NR==2{print $3"/"$2}')
