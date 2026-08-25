@@ -105,6 +105,7 @@ def count_ssh():
         ips = set()
         out = subprocess.run("ss -tnp state established 2>/dev/null", shell=True, capture_output=True,text=True,timeout=3).stdout
         for line in out.strip().splitlines():
+            if ":22" in line: continue   # ไม่จับพอร์ต 22 (SSH) ไม่นับเป็นคนออนไลน์
             m = re.search(r'\d+\.\d+\.\d+\.\d+:\d+\s+(\d+\.\d+\.\d+\.\d+):\d+', line)
             if not m: continue
             ip = m.group(1)

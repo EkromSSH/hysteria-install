@@ -23,9 +23,9 @@ SUBNET=$(echo "$SERVER_IP" | cut -d. -f1-3)
 # รวม IP ที่ต้องไม่นับ (ตัวเอง + hub/termius จาก showon.conf)
 EXCLUDE="$SERVER_IP"
 [ -n "$MY_IPS" ] && EXCLUDE="$EXCLUDE|$MY_IPS"
-# ดึง source IP ของแต่ละ ssh session
+# ดึง source IP ของการต่อทุกพอร์ต ยกเว้นพอร์ต 22 (SSH ไม่นับเป็นคนออนไลน์)
 SSH_ON=0
-for c in $(ss -tnp state established 2>/dev/null | grep ':22' | awk '{print $5}' | cut -d: -f1 | sort -u); do
+for c in $(ss -tnp state established 2>/dev/null | grep -v ':22' | awk '{print $5}' | cut -d: -f1 | sort -u); do
   if ! echo "$c" | grep -qE "^(${EXCLUDE})$|^127\.|^${SUBNET}\."; then
     SSH_ON=$((SSH_ON+1))
   fi
