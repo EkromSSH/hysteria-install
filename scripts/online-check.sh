@@ -17,7 +17,19 @@ ONLINE_JSON="$WWW_DIR/online_app.json"
 NOW="$(date +%s%3N)"
 NOW_S=$((NOW/1000))
 
-SSH_ON=$(ps aux | grep 'sshd:' | grep -v 'listener\|grep\|root' | awk '{print $1}' | sort -u | wc -l)
+# นับ SSH เฉพาะ session จริง ที่เข้าจาก IP ภายนอก (ไม่นับตัวเอง)
+SERVER_IP=$(ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}')
+SUBNET=$(echo "$SERVER_IP" | cut -d. -f1-3)
+# รวม IP ที่ต้องไม่นับ (ตัวเอง + hub/termius จาก showon.conf)
+EXCLUDE="$SERVER_IP"
+[ -n "$MY_IPS" ] && EXCLUDE="$EXCLUDE|$MY_IPS"
+# ดึง source IP ของแต่ละ ssh session
+SSH_ON=0
+for c in $(ss -tnp state established 2>/dev/null | grep ':22' | awk '{print $5}' | cut -d: -f1 | sort -u); do
+  if ! echo "$c" | grep -qE "^(${EXCLUDE})$|^127\.|^${SUBNET}\."; then
+    SSH_ON=$((SSH_ON+1))
+  fi
+done
 DB_ON=0; OVPN_ON=0; V2_ON=0; AGNUDP_ON=0
 
 if [[ -n "$AGN_PORT" ]] && command -v conntrack >/dev/null 2>&1; then
