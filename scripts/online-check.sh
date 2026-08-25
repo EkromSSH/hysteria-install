@@ -91,10 +91,11 @@ LOCAL_IPS_REGEX="$(local_ipv4_regex || true)"
 #  1) SSH Online (Universal, Accurate)
 # ===============================================
 count_ssh() {
-  # นับเฉพาะคนที่ล็อกอินสำเร็จแล้วจริงๆ (มี @ ใน session → user@host หรือ user@pts)
+  # นับเฉพาะคนที่ล็อกอินสำเร็จแล้วจริงๆ (มี @ และมี pts/tty เท่านั้น)
   # ไม่นับ bot สแกน / priv / notty / accepted / net / listener
   SSH_ON=$(ps -eo args \
     | grep -E "[s]shd: [^ ]+@" \
+    | grep -E "pts|tty" \
     | wc -l)
 }
 count_ssh
