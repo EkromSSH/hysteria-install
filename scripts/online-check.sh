@@ -278,10 +278,13 @@ count_agnudp() {
 count_agnudp
 log_debug "AGN-UDP count: $AGNUDP_ON"
 
-# ===============================================
-#  6) สรุปผลรวม + เขียน JSON
-# ===============================================
-SSH_ON=${SSH_ON:-0}
+# กันค่าผิดรูป (มี newline/ตัวอักษร) ให้เหลือแค่ตัวเลข
+clean_num() { local v="$1"; v=$(echo "$v" | tr -d '\n' | grep -oE '^[0-9]+' | head -1); echo "${v:-0}"; }
+SSH_ON=$(clean_num "$SSH_ON")
+DB_ON=$(clean_num "$DB_ON")
+OVPN_ON=$(clean_num "$OVPN_ON")
+V2_ON=$(clean_num "$V2_ON")
+AGNUDP_ON=$(clean_num "$AGNUDP_ON")
 DB_ON=${DB_ON:-0}
 OVPN_ON=${OVPN_ON:-0}
 V2_ON=${V2_ON:-0}
