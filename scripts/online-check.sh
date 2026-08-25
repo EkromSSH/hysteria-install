@@ -279,7 +279,7 @@ count_agnudp
 log_debug "AGN-UDP count: $AGNUDP_ON"
 
 # กันค่าผิดรูป (มี newline/ตัวอักษร) ให้เหลือแค่ตัวเลข
-clean_num() { local v="$1"; v=$(echo "$v" | tr -d '\n' | grep -oE '^[0-9]+' | head -1); echo "${v:-0}"; }
+clean_num() { local v="$1"; v=$(echo "$v" | tr -d '\n' | grep -oE '[0-9]+' | head -1); echo "${v:-0}"; }
 SSH_ON=$(clean_num "$SSH_ON")
 DB_ON=$(clean_num "$DB_ON")
 OVPN_ON=$(clean_num "$OVPN_ON")
