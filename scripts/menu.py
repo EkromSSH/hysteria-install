@@ -95,31 +95,14 @@ def get_uptime():
     except: return ""
 def count_ssh():
     try:
-        srv = subprocess.run("ip -o -4 route get 8.8.8.8 | awk '{print $7}'", shell=True, capture_output=True,text=True,timeout=3).stdout.strip()
-        conf = "/etc/showon.conf"
-        myips = srv
-        if os.path.exists(conf):
-            for line in open(conf):
-                if line.strip().startswith("MY_IPS"):
-                    myips += " " + line.split("=",1)[1].strip().strip('"')
-        # พอร์ตที่เครื่องฟังอยู่ ยกเว้น 22(SSH) และ 82(เว็บตัวเอง) พอร์ตอื่นนับปกติ
-        lports = subprocess.run("ss -tlnp 2>/dev/null | awk '{print $4}' | grep -oE ':[0-9]+$' | tr -d ':' | grep -vE '^(22|82)$' | sort -u", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().split()
-        ips = set()
-        out = subprocess.run("ss -tnp state established 2>/dev/null", shell=True, capture_output=True,text=True,timeout=3).stdout
-        for line in out.strip().splitlines():
-            if not line.strip(): continue
-            parts = line.split()
-            if len(parts) < 5: continue
-            local = parts[2]; peer = parts[3]
-            lport = local.split(":")[-1]
-            if lport not in lports: continue   # เฉพาะพอร์ตที่ฟังอยู่ และไม่ใช่ 22
-            pip = peer.split(":")[0]
-            if pip == srv or pip.startswith("127."): continue
-            skip = False
-            for mp in myips.split():
-                if pip == mp.strip(): skip = True
-            if not skip: ips.add(pip)
-        return len(ips)
+        # นับ SSH session จริง (เหมือน TspKchn) ตัด priv/notty
+        r = subprocess.run("ps -eo comm,args | grep '[s]shd:' | grep -v 'sshd: .*priv' | grep -v 'sshd: .*notty' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
+        n = int(r.stdout.strip() or 0)
+        if n == 0:
+            # fallback: นับ connection พอร์ต 22
+            r2 = subprocess.run("ss -tn state established 2>/dev/null | grep -E ':22\\s' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
+            n = int(r2.stdout.strip() or 0)
+        return n
     except: return 0
 def count_v2ray():
     return 0
