@@ -95,8 +95,28 @@ def get_uptime():
     except: return ""
 def count_ssh():
     try:
-        r = subprocess.run("ss -tn state established 2>/dev/null | grep -E ':22\\s' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
-        return int(r.stdout.strip() or 0)
+        srv = subprocess.run("ip -o -4 route get 8.8.8.8 | awk '{print $7}'", shell=True, capture_output=True,text=True,timeout=3).stdout.strip()
+        conf = "/etc/showon.conf"
+        myips = srv
+        if os.path.exists(conf):
+            for line in open(conf):
+                if line.strip().startswith("MY_IPS"):
+                    myips += " " + line.split("=",1)[1].strip().strip('"')
+        ips = set()
+        out = subprocess.run("ss -tn state established 2>/dev/null | grep ':22'", shell=True, capture_output=True,text=True,timeout=3).stdout
+        for line in out.strip().splitlines():
+            # หา IP source (คอลัมน์สุดท้ายก่อน users)
+            m = re.search(r'(\d+\.\d+\.\d+\.\d+):\d+\s+users:', line)
+            if not m:
+                m = re.search(r'(\d+\.\d+\.\d+\.\d+):\d+\s*$', line)
+            if not m: continue
+            ip = m.group(1)
+            if ip == srv or ip.startswith("127."): continue
+            skip = False
+            for mp in myips.split():
+                if ip == mp.strip(): skip = True
+            if not skip: ips.add(ip)
+        return len(ips)
     except: return 0
 def count_v2ray():
     return 0
