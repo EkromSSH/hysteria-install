@@ -263,11 +263,15 @@ count_agnudp() {
     filtered="$(echo "$filtered" | grep -Ev "$LOCAL_IPS_REGEX" 2>/dev/null || true)"
   fi
 
-  # เขียน IP ที่เห็นรอบนี้ลง state (อัปเดต timestamp)
+  # เขียน IP ที่เห็นรอบนี้ลง state (อัปเดต timestamp) - เฉพาะ IP ถูกต้อง
   for ip in $filtered; do
+    [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
     sed -i "/^${ip}|/d" "$STATE" 2>/dev/null
     echo "${ip}|${now_s}" >> "$STATE"
   done
+
+  # ล้างบรรทัดผิดรูปใน state (ที่ไม่ใช่ IP|ts)
+  sed -i '/^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+|[0-9]\+$/!d' "$STATE" 2>/dev/null
 
   if [[ -f "$STATE" ]]; then
     AGNUDP_ON=$(grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\|[0-9]+$' "$STATE" 2>/dev/null || echo 0)
@@ -279,7 +283,7 @@ count_agnudp
 log_debug "AGN-UDP count: $AGNUDP_ON"
 
 # กันค่าผิดรูป (มี newline/ตัวอักษร) ให้เหลือแค่ตัวเลข
-clean_num() { local v="$1"; v=$(echo "$v" | tr -d '\n' | grep -oE '[0-9]+' | head -n1); echo -n "${v:-0}"; }
+clean_num() { local v="$1"; v=$(echo "$v" | tr -d '\n' | grep -oE '[0-9]+' | awk 'NR==1{print;exit}'); echo -n "${v:-0}"; }
 SSH_ON=$(clean_num "$SSH_ON")
 DB_ON=$(clean_num "$DB_ON")
 OVPN_ON=$(clean_num "$OVPN_ON")
