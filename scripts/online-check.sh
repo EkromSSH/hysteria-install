@@ -17,7 +17,7 @@ ONLINE_JSON="$WWW_DIR/online_app.json"
 NOW="$(date +%s%3N)"
 NOW_S=$((NOW/1000))
 
-SSH_ON=$(ps aux | grep 'sshd:' | grep -v 'listener\|grep\|root' | awk '{print $1}' | sort -u | wc -l)
+SSH_ON=$(ps aux | grep -E 'sshd: [a-zA-Z]' | grep -v 'listener\|grep' | awk '{print $1}' | sort -u | wc -l)
 DB_ON=0; OVPN_ON=0; V2_ON=0; AGNUDP_ON=0
 
 if [[ -n "$AGN_PORT" ]] && command -v conntrack >/dev/null 2>&1; then
