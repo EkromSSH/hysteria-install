@@ -102,8 +102,8 @@ def count_ssh():
             for line in open(conf):
                 if line.strip().startswith("MY_IPS"):
                     myips += " " + line.split("=",1)[1].strip().strip('"')
-        # พอร์ตที่เครื่องฟังอยู่ ยกเว้น 22 (SSH ไม่นับ, พอร์ตอื่นรวมเว็บ/V2Ray นับปกติ)
-        lports = subprocess.run("ss -tlnp 2>/dev/null | awk '{print $4}' | grep -oE ':[0-9]+$' | tr -d ':' | grep -v '^22$' | sort -u", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().split()
+        # พอร์ตที่เครื่องฟังอยู่ ยกเว้น 22(SSH) และ 82(เว็บตัวเอง) พอร์ตอื่นนับปกติ
+        lports = subprocess.run("ss -tlnp 2>/dev/null | awk '{print $4}' | grep -oE ':[0-9]+$' | tr -d ':' | grep -vE '^(22|82)$' | sort -u", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().split()
         ips = set()
         out = subprocess.run("ss -tnp state established 2>/dev/null", shell=True, capture_output=True,text=True,timeout=3).stdout
         for line in out.strip().splitlines():

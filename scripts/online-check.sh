@@ -23,8 +23,8 @@ SUBNET=$(echo "$SERVER_IP" | cut -d. -f1-3)
 # รวม IP ที่ต้องไม่นับ (ตัวเอง + hub/termius จาก showon.conf)
 EXCLUDE="$SERVER_IP"
 [ -n "$MY_IPS" ] && EXCLUDE="$EXCLUDE|$MY_IPS"
-# เอารายการพอร์ตที่เครื่องเราฟังอยู่ (listening) ยกเว้น 22 (SSH ไม่นับ, พอร์ตอื่นรวมเว็บ/V2Ray นับปกติ)
-LPORTS=$(ss -tlnp 2>/dev/null | awk '{print $4}' | grep -oE ':[0-9]+$' | tr -d ':' | grep -v '^22$' | sort -u | tr '\n' '|')
+# เอารายการพอร์ตที่เครื่องเราฟังอยู่ (listening) ยกเว้น 22(SSH) และ 82 (เว็บตัวเอง) พอร์ตอื่นนับปกติ
+LPORTS=$(ss -tlnp 2>/dev/null | awk '{print $4}' | grep -oE ':[0-9]+$' | tr -d ':' | grep -vE '^(22|82)$' | sort -u | tr '\n' '|')
 LPORTS="${LPORTS%|}"
 SSH_ON=0
 # ดูการต่อที่ established: คอลัมน์4=Local คอลัมน์5=Peer
