@@ -248,7 +248,8 @@ count_agnudp() {
     AGNUDP_ON=0
     # ถ้ายังมีใน state (คนเลิกต่อไม่นาน) ให้นับจาก state
     if [[ -f "$STATE" ]]; then
-      AGNUDP_ON=$(grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\|[0-9]+$' "$STATE" 2>/dev/null || echo 0)
+      AGNUDP_ON=$(grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\|[0-9]+$' "$STATE" 2>/dev/null)
+      AGNUDP_ON=${AGNUDP_ON:-0}
     fi
     return
   fi
@@ -274,7 +275,8 @@ count_agnudp() {
   sed -i '/^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+|[0-9]\+$/!d' "$STATE" 2>/dev/null
 
   if [[ -f "$STATE" ]]; then
-    AGNUDP_ON=$(grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\|[0-9]+$' "$STATE" 2>/dev/null || echo 0)
+    AGNUDP_ON=$(grep -cE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\|[0-9]+$' "$STATE" 2>/dev/null)
+    AGNUDP_ON=${AGNUDP_ON:-0}
   else
     AGNUDP_ON=0
   fi
@@ -283,7 +285,7 @@ count_agnudp
 log_debug "AGN-UDP count: $AGNUDP_ON"
 
 # กันค่าผิดรูป (มี newline/ตัวอักษร) ให้เหลือแค่ตัวเลข
-clean_num() { local v="$1"; v=$(echo "$v" | tr -d '\n' | grep -oE '[0-9]+' | awk 'NR==1{print;exit}'); echo -n "${v:-0}"; }
+clean_num() { local v="$1"; v=$(printf '%s' "$v" | tr -d '\n' | grep -oE '[0-9]+' | head -n1); printf '%s' "${v:-0}"; }
 SSH_ON=$(clean_num "$SSH_ON")
 DB_ON=$(clean_num "$DB_ON")
 OVPN_ON=$(clean_num "$OVPN_ON")
