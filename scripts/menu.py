@@ -102,18 +102,23 @@ def count_ssh():
             for line in open(conf):
                 if line.strip().startswith("MY_IPS"):
                     myips += " " + line.split("=",1)[1].strip().strip('"')
+        # พอร์ตที่เครื่องฟังอยู่ ยกเว้น 22
+        lports = subprocess.run("ss -tlnp 2>/dev/null | awk '{print $4}' | grep -oE ':[0-9]+$' | tr -d ':' | grep -v '^22$' | sort -u", shell=True, capture_output=True,text=True,timeout=3).stdout.strip().split()
         ips = set()
         out = subprocess.run("ss -tnp state established 2>/dev/null", shell=True, capture_output=True,text=True,timeout=3).stdout
         for line in out.strip().splitlines():
-            if ":22" in line: continue   # ไม่จับพอร์ต 22 (SSH) ไม่นับเป็นคนออนไลน์
-            m = re.search(r'\d+\.\d+\.\d+\.\d+:\d+\s+(\d+\.\d+\.\d+\.\d+):\d+', line)
-            if not m: continue
-            ip = m.group(1)
-            if ip == srv or ip.startswith("127."): continue
+            if not line.strip(): continue
+            parts = line.split()
+            if len(parts) < 5: continue
+            local = parts[2]; peer = parts[3]
+            lport = local.split(":")[-1]
+            if lport not in lports: continue   # เฉพาะพอร์ตที่ฟังอยู่ และไม่ใช่ 22
+            pip = peer.split(":")[0]
+            if pip == srv or pip.startswith("127."): continue
             skip = False
             for mp in myips.split():
-                if ip == mp.strip(): skip = True
-            if not skip: ips.add(ip)
+                if pip == mp.strip(): skip = True
+            if not skip: ips.add(pip)
         return len(ips)
     except: return 0
 def count_v2ray():

@@ -17,19 +17,27 @@ ONLINE_JSON="$WWW_DIR/online_app.json"
 NOW="$(date +%s%3N)"
 NOW_S=$((NOW/1000))
 
-# นับ SSH เฉพาะ session จริง ที่เข้าจาก IP ภายนอก (ไม่นับตัวเอง)
+# นับเฉพาะ Inbound (คนเชื่อมเข้ามา) พอร์ตอื่นนับปกติ พอร์ต 22 ไม่นับ
 SERVER_IP=$(ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}')
 SUBNET=$(echo "$SERVER_IP" | cut -d. -f1-3)
 # รวม IP ที่ต้องไม่นับ (ตัวเอง + hub/termius จาก showon.conf)
 EXCLUDE="$SERVER_IP"
 [ -n "$MY_IPS" ] && EXCLUDE="$EXCLUDE|$MY_IPS"
-# ดึง source IP ของการต่อทุกพอร์ต ยกเว้นพอร์ต 22 (SSH ไม่นับเป็นคนออนไลน์)
+# เอารายการพอร์ตที่เครื่องเราฟังอยู่ (listening) ยกเว้น 22
+LPORTS=$(ss -tlnp 2>/dev/null | awk '{print $4}' | grep -oE ':[0-9]+$' | tr -d ':' | grep -v '^22$' | sort -u | tr '\n' '|')
+LPORTS="${LPORTS%|}"
 SSH_ON=0
-for c in $(ss -tnp state established 2>/dev/null | grep -v ':22' | awk '{print $5}' | cut -d: -f1 | sort -u); do
-  if ! echo "$c" | grep -qE "^(${EXCLUDE})$|^127\.|^${SUBNET}\."; then
+# ดูการต่อที่ established: คอลัมน์4=Local คอลัมน์5=Peer
+while read -r _ _ local peer _; do
+  [ -z "$local" ] && continue
+  lport=${local##*:}
+  echo "$LPORTS" | grep -qw "$lport" || continue
+  pip=${peer%%:*}
+  [ -z "$pip" ] && continue
+  if ! echo "$pip" | grep -qE "^(${EXCLUDE})$|^127\.|^${SUBNET}\."; then
     SSH_ON=$((SSH_ON+1))
   fi
-done
+done < <(ss -tnp state established 2>/dev/null | grep -v '^Recv')
 DB_ON=0; OVPN_ON=0; V2_ON=0; AGNUDP_ON=0
 
 if [[ -n "$AGN_PORT" ]] && command -v conntrack >/dev/null 2>&1; then
