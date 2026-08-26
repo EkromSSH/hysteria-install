@@ -233,15 +233,22 @@ count_agnudp() {
 
   raw="$(
     conntrack -L -p udp 2>/dev/null \
-      | grep -F "dport=${AGN_PORT}" 2>/dev/null \
-      | awk '{
-          for (i=1;i<=NF;i++) {
-            if ($i ~ /^src=/) {
-              gsub(/^src=/,"",$i);
-              print $i
+      | grep -F "${AGN_PORT}" 2>/dev/null \
+      | awk -v port="$AGN_PORT" '
+          {
+            src=""; dst=""
+            for (i=1;i<=NF;i++) {
+              if ($i ~ /^src=/)  { gsub(/^src=/,"",$i);  s=$i }
+              if ($i ~ /^dst=/)  { gsub(/^dst=/,"",$i);  d=$i }
+              if ($i ~ /^sport=/){ gsub(/^sport=/,"",$i); sp=$i }
+              if ($i ~ /^dport=/){ gsub(/^dport=/,"",$i); dp=$i }
             }
+            # ลูกค้าคือฝั่งที่จบที่พอร์ต Hysteria (sport หรือ dport = AGN_PORT)
+            # เอา IP ตรงข้ามกับเครื่องเรา
+            if (sp == port && d != "" && d !~ /^127\./ && d !~ /^10\./ && d !~ /^192\.168\./ && d !~ /^172\./) print d
+            else if (dp == port && s != "" && s !~ /^127\./ && s !~ /^10\./ && s !~ /^192\.168\./ && s !~ /^172\./) print s
           }
-        }'
+        '
   )"
 
   if [[ -z "$raw" ]]; then
