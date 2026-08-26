@@ -38,15 +38,18 @@ if ls /etc/apt/sources.list.d/*.list >/dev/null 2>&1; then
 fi
 
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
-for i in 1 2 3; do
-  timeout 90 apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 2>&1 | tail -2 && break
-  echo "  apt busy or locked, clearing lock... ($i/3)"
-  lsof /var/lib/dpkg/lock-frontend 2>/dev/null | awk 'NR>1{print $2}' | xargs -r kill 2>/dev/null
+for i in 1 2 3 4 5; do
+  echo "  apt-get update attempt $i/5 ..."
+  if timeout 180 apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 >/tmp/apt_update.log 2>&1; then
+    echo "  apt-get update OK"
+    break
+  fi
+  echo "  attempt $i failed, clearing lock..."
   rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock 2>/dev/null
   dpkg --configure -a 2>/dev/null
-  sleep 3
+  sleep 5
 done
-apt-get install -y -o Acquire::Retries=3 -o Acquire::http::Timeout=30 wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -2
+apt-get install -y -o Acquire::Retries=5 -o Acquire::http::Timeout=60 wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -5
 
 # คืนค่า sources.list.d
 if ls /etc/apt/backup-sources/*.list >/dev/null 2>&1; then
