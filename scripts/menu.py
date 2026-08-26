@@ -104,6 +104,8 @@ def count_dropbear():
         r = subprocess.run("ps aux | grep '[d]ropbear' | wc -l", shell=True, capture_output=True,text=True,timeout=3)
         return max(0, int(r.stdout.strip() or 0) - 1)
     except: return 0
+def count_v2ray():
+    return 0
 def count_openvpn():
     try:
         if os.path.exists("/etc/openvpn/server/openvpn-status.log"):
