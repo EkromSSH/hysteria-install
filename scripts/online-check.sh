@@ -91,14 +91,21 @@ LOCAL_IPS_REGEX="$(local_ipv4_regex || true)"
 #  1) SSH Online (Universal, Accurate)
 # ===============================================
 count_ssh() {
-  # นับเฉพาะคนที่ล็อกอินสำเร็จแล้วจริงๆ (มี @pts/ หรือ @tty/ เท่านั้น)
-  # ไม่นับ bot สแกน / priv / notty / accepted / net / listener
-  SSH_ON=$(ps -eo args \
-    | grep -E "[s]shd: [^ ]+@(pts|tty)/" \
+  SSH_ON=$(ps -eo comm,args \
+    | grep "[s]shd:" \
+    | grep -v "sshd: .*priv" \
+    | grep -v "sshd: .*notty" \
     | wc -l)
+
+  # หากขึ้นค้าง 0 แต่ ss -tn ยังเห็น connection → fallback
+  if [[ "$SSH_ON" -eq 0 ]]; then
+    SSH_ON=$(ss -tn state established 2>/dev/null \
+      | grep -E ":22\s" \
+      | wc -l)
+  fi
 }
 count_ssh
-log_debug "SSH sessions (logged-in): $SSH_ON"
+log_debug "SSH sessions: $SSH_ON"
 
 # ===============================================
 #  2) Dropbear Online (Accurate via ps)
@@ -202,6 +209,9 @@ log_debug "V2/Xray count: $V2_ON"
 # ===============================================
 AGNUDP_ON=0
 
+# ดึง IP เครื่องเรา (ใช้ตัด outbound ที่ sport=AGN_PORT แต่ dst คือเราเอง)
+MY_IP=$(ip -o -4 route get 8.8.8.8 2>/dev/null | awk '{print $7}')
+
 count_agnudp() {
   if [[ "${AGN_PRESENT}" != "1" ]]; then
     AGNUDP_ON=0
@@ -232,23 +242,14 @@ count_agnudp() {
   fi
 
   raw="$(
-    conntrack -L -p udp 2>/dev/null \
-      | grep -F "${AGN_PORT}" 2>/dev/null \
-      | awk -v port="$AGN_PORT" '
-          {
-            src=""; dst=""
-            for (i=1;i<=NF;i++) {
-              if ($i ~ /^src=/)  { gsub(/^src=/,"",$i);  s=$i }
-              if ($i ~ /^dst=/)  { gsub(/^dst=/,"",$i);  d=$i }
-              if ($i ~ /^sport=/){ gsub(/^sport=/,"",$i); sp=$i }
-              if ($i ~ /^dport=/){ gsub(/^dport=/,"",$i); dp=$i }
-            }
-            # ลูกค้าคือฝั่งที่จบที่พอร์ต Hysteria (sport หรือ dport = AGN_PORT)
-            # เอา IP ตรงข้ามกับเครื่องเรา
-            if (sp == port && d != "" && d !~ /^127\./ && d !~ /^10\./ && d !~ /^192\.168\./ && d !~ /^172\./) print d
-            else if (dp == port && s != "" && s !~ /^127\./ && s !~ /^10\./ && s !~ /^192\.168\./ && s !~ /^172\./) print s
-          }
-        '
+    # ตรวจจับแค่ IP ที่เชื่อมต่อเข้ามา (src = ฝั่งเริ่ม connection, ไม่ใช่เครื่องเราเอง)
+    journalctl -u hysteria --since "${KEEP}s ago" --no-pager 2>/dev/null \
+      | grep -oE 'src:[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' \
+      | sed 's/^src://' \
+      | grep -E '^[0-9]' \
+      | grep -v "^${MY_IP}$" \
+      | grep -Ev '^(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.)' \
+      | sort -u
   )"
 
   if [[ -z "$raw" ]]; then
