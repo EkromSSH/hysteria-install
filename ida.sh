@@ -31,20 +31,39 @@ fi
 OBFS=${OBFS:-idavpn}
 
 # ══ Handle apt lock gracefully ══
-# ข้าม sources.list ภายนอกทั้งหมด (ป้องกันค้าง reading package lists)
+# ย้าย sources.list.d ออกชั่วคราว (กันค้างตอน update) แล้วคืนค่าหลังติดตั้ง
 mkdir -p /etc/apt/backup-sources 2>/dev/null
-mv /etc/apt/sources.list.d/*.list /etc/apt/backup-sources/ 2>/dev/null
+if ls /etc/apt/sources.list.d/*.list >/dev/null 2>&1; then
+  mv /etc/apt/sources.list.d/*.list /etc/apt/backup-sources/ 2>/dev/null
+fi
+
+restore_sources() {
+  if ls /etc/apt/backup-sources/*.list >/dev/null 2>&1; then
+    mv /etc/apt/backup-sources/*.list /etc/apt/sources.list.d/ 2>/dev/null || true
+  fi
+}
+trap restore_sources EXIT
+
+echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections 2>/dev/null || true
+echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections 2>/dev/null || true
+export DEBIAN_FRONTEND=noninteractive
 
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
-for i in 1 2 3; do
-  apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 2>&1 | tail -2 && break
-  echo "  apt busy or locked, clearing lock... ($i/3)"
-  lsof /var/lib/dpkg/lock-frontend 2>/dev/null | awk 'NR>1{print $2}' | xargs -r kill 2>/dev/null
+for i in 1 2 3 4 5; do
+  echo "  apt-get update attempt $i/5 ..."
+  if timeout 180 apt-get update -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 >/tmp/apt_update.log 2>&1; then
+    echo "  apt-get update OK"
+    break
+  fi
+  echo "  attempt $i failed, clearing lock..."
   rm -f /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock 2>/dev/null
   dpkg --configure -a 2>/dev/null
-  sleep 3
+  sleep 5
 done
-apt-get install -y -o Acquire::Retries=3 -o Acquire::http::Timeout=30 wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -2
+apt-get install -y -o Acquire::Retries=5 -o Acquire::http::Timeout=60 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -5
+
+# คืนค่า sources.list.d
+restore_sources
 
 # ══ Download Hysteria ══
 echo -e "\n\033[1;34m==>\033[0m Downloading Hysteria v1.3.5..."
@@ -93,10 +112,21 @@ WantedBy=multi-user.target
 E2
 
 # ══ Port hopping ══
-echo -e "\n\033[1;34m==>\033[0m Setting up port hopping..."
-iptables -t nat -F PREROUTING 2>/dev/null
+echo -e "\n\033[1;34m==>\033[0m Setting up port hopping (UDP 10000-65000 -> ${PORT})..."
+# ลบเฉพาะกฎเดิมของ Hysteria ก่อนถ้ามี (ป้องกันกฎซ้ำซ้อน) โดยไม่ล้างกฎ PREROUTING ของบริการอื่น (เช่น SSH, SlowDNS)
+iptables -t nat -D PREROUTING -p udp --dport 10000:65000 -j REDIRECT --to-port ${PORT} 2>/dev/null || true
+iptables -t nat -D PREROUTING -p udp --dport ${PORT} -j REDIRECT --to-port ${PORT} 2>/dev/null || true
+
+# ตั้งค่า Port Hopping พอร์ตสุ่ม UDP 10000-65000 ชี้เข้า PORT (${PORT})
 iptables -t nat -A PREROUTING -p udp --dport 10000:65000 -j REDIRECT --to-port ${PORT}
 iptables -t nat -A PREROUTING -p udp --dport ${PORT} -j REDIRECT --to-port ${PORT}
+
+# เปิด Firewall ตาราง INPUT สำหรับ UDP
+iptables -I INPUT -p udp --dport ${PORT} -j ACCEPT 2>/dev/null || true
+iptables -I INPUT -p udp --dport 10000:65000 -j ACCEPT 2>/dev/null || true
+
+# บันทึกกฎ iptables อย่างปลอดภัย
+iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 
 systemctl daemon-reload && systemctl enable hysteria && systemctl restart hysteria
 sleep 3

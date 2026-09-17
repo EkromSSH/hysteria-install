@@ -10,9 +10,13 @@ PORT=${PORT:-36712}
 read -p "Auth (empty=none): " AUTH
 read -p "OBFS (empty=none): " OBFS
 
+echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections 2>/dev/null || true
+echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections 2>/dev/null || true
+export DEBIAN_FRONTEND=noninteractive
+
 echo -e "\n\033[1;34m==>\033[0m Installing packages..."
 apt-get update -qq 2>/dev/null
-apt-get install -y wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -2
+apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" wget curl openssl nginx vnstat conntrack jq python3 iptables-persistent 2>&1 | tail -2
 
 echo -e "\n\033[1;34m==>\033[0m Downloading Hysteria v1.3.5..."
 wget -q https://github.com/apernet/hysteria/releases/download/v1.3.5/hysteria-linux-amd64 -O /usr/local/bin/hysteria
@@ -58,10 +62,13 @@ RestartSec=3
 [Install] WantedBy=multi-user.target
 EOF
 
-echo -e "\n\033[1;34m==>\033[0m Setting up port hopping 10000-65000..."
-iptables -t nat -F PREROUTING 2>/dev/null
+echo -e "\n\033[1;34m==>\033[0m Setting up port hopping (UDP 10000-65000 -> ${PORT})..."
+iptables -t nat -D PREROUTING -p udp --dport 10000:65000 -j REDIRECT --to-port ${PORT} 2>/dev/null || true
+iptables -t nat -D PREROUTING -p udp --dport ${PORT} -j REDIRECT --to-port ${PORT} 2>/dev/null || true
 iptables -t nat -A PREROUTING -p udp --dport 10000:65000 -j REDIRECT --to-port ${PORT}
 iptables -t nat -A PREROUTING -p udp --dport ${PORT} -j REDIRECT --to-port ${PORT}
+iptables -I INPUT -p udp --dport ${PORT} -j ACCEPT 2>/dev/null || true
+iptables -I INPUT -p udp --dport 10000:65000 -j ACCEPT 2>/dev/null || true
 iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 
 systemctl daemon-reload && systemctl enable hysteria && systemctl restart hysteria
