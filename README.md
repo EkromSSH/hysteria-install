@@ -14,6 +14,16 @@ Or:
 bash <(curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/install.sh)
 ```
 
+## 🎮 Quick Update & Gaming Fix (Roblox Error 279, etc.)
+
+สำหรับเซิร์ฟเวอร์เดิมที่ต้องการอัปเดตและแก้ปัญหาเล่นเกมไม่ได้:
+
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/update.sh)
+```
+
+หรือเปิดเมนู `showon` แล้วเลือก `[16] Update All` (ระบบจะซ่อมแซม MTU, BadVPN 7100-7300, และ Sysctl อัตโนมัติ)
+
 ## ✨ Features
 
 - ✅ Auto-detect Server IP (press Enter to accept)
