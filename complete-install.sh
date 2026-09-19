@@ -79,6 +79,34 @@ net.ipv4.ip_forward = 1
 EOF
 sysctl -p /etc/sysctl.d/99-hysteria.conf >/dev/null 2>&1 || true
 
+# ══ BadVPN udpgw for Gaming (7100, 7200, 7300) ══
+echo -e "\n\033[1;34m==>\033[0m Installing BadVPN udpgw for Gaming..."
+wget -q -O /usr/sbin/badvpn "https://raw.githubusercontent.com/EkromSSH/VPN/main/badvpn/badvpn" 2>/dev/null || true
+chmod +x /usr/sbin/badvpn 2>/dev/null || true
+
+for p in 7100 7200 7300; do
+  idx=$((p - 7099))
+  cat > /etc/systemd/system/badvpn${idx}.service << EOF
+[Unit]
+Description=UDP ${p}
+After=syslog.target network-online.target
+
+[Service]
+User=root
+NoNewPrivileges=true
+ExecStart=/usr/sbin/badvpn --listen-addr 127.0.0.1:${p} --max-clients 500
+Restart=on-failure
+RestartPreventExitStatus=23
+LimitNPROC=10000
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  systemctl daemon-reload
+  systemctl enable --now badvpn${idx} 2>/dev/null || true
+done
+
 echo -e "\n\033[1;34m==>\033[0m Setting up port hopping (UDP 10000-65000 -> ${PORT})..."
 iptables -t nat -D PREROUTING -p udp --dport 10000:65000 -j REDIRECT --to-port ${PORT} 2>/dev/null || true
 iptables -t nat -D PREROUTING -p udp --dport ${PORT} -j REDIRECT --to-port ${PORT} 2>/dev/null || true
