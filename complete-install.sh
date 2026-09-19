@@ -41,7 +41,7 @@ cat > /opt/hysteria/config-v1.json << EOF
   "auth_str": "${AUTH}",
   "recv_window_conn": 20971520,
   "recv_window_client": 41943040,
-  "disable_mtu_discovery": false
+  "disable_mtu_discovery": true
 }
 EOF
 
@@ -61,6 +61,23 @@ Restart=always
 RestartSec=3
 [Install] WantedBy=multi-user.target
 EOF
+
+# ══ Kernel & UDP Buffer Optimization ══
+echo -e "\n\033[1;34m==>\033[0m Optimizing system UDP buffers & network..."
+cat > /etc/sysctl.d/99-hysteria.conf << 'EOF'
+# UDP Buffer Optimization for Gaming & High Throughput
+net.core.rmem_max = 8388608
+net.core.wmem_max = 8388608
+net.core.rmem_default = 8388608
+net.core.wmem_default = 8388608
+
+# Ephemeral port range to prevent collision with Hysteria port hopping (10000-65000)
+net.ipv4.ip_local_port_range = 1024 9999
+
+# Enable IP forwarding
+net.ipv4.ip_forward = 1
+EOF
+sysctl -p /etc/sysctl.d/99-hysteria.conf >/dev/null 2>&1 || true
 
 echo -e "\n\033[1;34m==>\033[0m Setting up port hopping (UDP 10000-65000 -> ${PORT})..."
 iptables -t nat -D PREROUTING -p udp --dport 10000:65000 -j REDIRECT --to-port ${PORT} 2>/dev/null || true
