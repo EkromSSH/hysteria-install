@@ -425,38 +425,9 @@ def change_limit():
 
 def update_dashboard():
     os.system("clear"); print(); box(); center(f"{G}\u21bb{NC} {BD}Update Scripts{NC}"); bsep()
-    bput(f"  {D}Updating files...{NC}")
+    bput(f"  {D}Updating files & applying game fixes...{NC}")
     try:
-        for src, dst in [
-            ("setup.sh", "/tmp/ida-install.sh"),
-            ("web/index.html", f"{WEB_DIR}/index.html"),
-            ("scripts/online-check.sh", "/usr/local/bin/online-check.sh"),
-            ("scripts/sysinfo.sh", "/usr/local/bin/sysinfo.sh"),
-            ("scripts/vnstat-traffic.sh", "/usr/local/bin/vnstat-traffic.sh"),
-            ("scripts/menu.py", "/opt/hysteria/menu.py"),
-        ]:
-            url = f"https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/{src}"
-            subprocess.run(f"curl -sL {url} -o {dst}", shell=True, capture_output=True,timeout=10)
-        subprocess.run("chmod +x /usr/local/bin/online-check.sh /usr/local/bin/sysinfo.sh /usr/local/bin/vnstat-traffic.sh /opt/hysteria/menu.py", shell=True, capture_output=True,timeout=5)
-        subprocess.run("systemctl daemon-reload", shell=True, capture_output=True,timeout=10)
-        subprocess.run("systemctl enable --now online-check.service online-check.timer 2>/dev/null", shell=True, capture_output=True,timeout=10)
-        subprocess.run("systemctl restart online-check sysinfo vnstat-traffic", shell=True, capture_output=True,timeout=10)
-        # Update config: ensure disable_mtu_discovery=true for gaming/UDP stability
-        subprocess.run("sed -i 's/\"disable_mtu_discovery\": false/\"disable_mtu_discovery\": true/' /opt/hysteria/config-v1.json 2>/dev/null; systemctl restart hysteria 2>/dev/null", shell=True, capture_output=True,timeout=10)
-
-        # Apply sysctl UDP buffer & ephemeral port optimization
-        sysctl_data = "net.core.rmem_max = 8388608\nnet.core.wmem_max = 8388608\nnet.core.rmem_default = 8388608\nnet.core.wmem_default = 8388608\nnet.ipv4.ip_local_port_range = 1024 9999\nnet.ipv4.ip_forward = 1\n"
-        with open("/etc/sysctl.d/99-hysteria.conf", "w") as f: f.write(sysctl_data)
-        subprocess.run("sysctl -p /etc/sysctl.d/99-hysteria.conf 2>/dev/null", shell=True, capture_output=True, timeout=5)
-
-        # Ensure BadVPN udpgw (7100, 7200, 7300) is installed and running
-        subprocess.run("command -v /usr/sbin/badvpn >/dev/null 2>&1 || (wget -q -O /usr/sbin/badvpn https://raw.githubusercontent.com/EkromSSH/VPN/main/badvpn/badvpn && chmod +x /usr/sbin/badvpn)", shell=True, capture_output=True, timeout=15)
-        for p in [7100, 7200, 7300]:
-            idx = p - 7099
-            svc_data = f"[Unit]\nDescription=UDP {p}\nAfter=syslog.target network-online.target\n\n[Service]\nUser=root\nNoNewPrivileges=true\nExecStart=/usr/sbin/badvpn --listen-addr 127.0.0.1:{p} --max-clients 500\nRestart=on-failure\nRestartPreventExitStatus=23\nLimitNPROC=10000\nLimitNOFILE=1000000\n\n[Install]\nWantedBy=multi-user.target\n"
-            with open(f"/etc/systemd/system/badvpn{idx}.service", "w") as f: f.write(svc_data)
-        subprocess.run("systemctl daemon-reload && systemctl enable --now badvpn1 badvpn2 badvpn3 2>/dev/null", shell=True, capture_output=True, timeout=10)
-
+        subprocess.run("curl -sL 'https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/update.sh?t='$(date +%s) | bash", shell=True)
         bput(f"  {G}\u2705{NC} Updated! Restart menu to apply")
     except Exception as e: bput(f"{R}\u274C{NC} {e}")
     bsep(); bot(); print(); time.sleep(2)
