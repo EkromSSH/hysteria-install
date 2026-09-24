@@ -28,14 +28,15 @@ cat > /opt/hysteria/config-v1.json << EOF
   "protocol": "udp",
   "cert": "/opt/hysteria/certs/server.crt",
   "key": "/opt/hysteria/certs/server.key",
-  "up_mbps": 2000,
-  "down_mbps": 2000,
+  "up_mbps": 100,
+  "down_mbps": 100,
   "obfs": "${OBFS}",
   "auth_str": "${AUTH}",
-  "recv_window_conn": 20971520,
-  "recv_window_client": 41943040,
+  "recv_window_conn": 2097152,
+  "recv_window_client": 8388608,
+  "max_conn_client": 1024,
   "resolve_preference": "4",
-  "disable_mtu_discovery":  true
+  "disable_mtu_discovery": true
 }
 EOF
 cat > /opt/hysteria/start.sh << 'E1'
@@ -59,17 +60,21 @@ E2
 # ══ Kernel & UDP Buffer Optimization ══
 echo -e "\n\033[1;34m==>\033[0m Optimizing system UDP buffers & network..."
 cat > /etc/sysctl.d/99-hysteria.conf << 'EOF'
-# UDP Buffer Optimization for Gaming & High Throughput
-net.core.rmem_max = 8388608
-net.core.wmem_max = 8388608
-net.core.rmem_default = 8388608
-net.core.wmem_default = 8388608
+# UDP Buffer Optimization for QUIC / Hysteria & High Throughput
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
+net.core.rmem_default = 4194304
+net.core.wmem_default = 4194304
 
-# Ephemeral port range to prevent collision with Hysteria port hopping (10000-65000)
-net.ipv4.ip_local_port_range = 1024 9999
+# Ephemeral port range for outbound connections (prevents port exhaustion)
+net.ipv4.ip_local_port_range = 10000 65535
 
 # Enable IP forwarding
 net.ipv4.ip_forward = 1
+
+# BBR Congestion Control & Fair Queuing for UDP/TCP stability
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
 
 # Conntrack tuning for High-Volume UDP Port Hopping & VPN
 net.netfilter.nf_conntrack_max = 1048576
@@ -106,7 +111,7 @@ After=syslog.target network-online.target
 [Service]
 User=root
 NoNewPrivileges=true
-ExecStart=/usr/sbin/badvpn --listen-addr 127.0.0.1:${p} --max-clients 500
+ExecStart=/usr/sbin/badvpn --listen-addr 127.0.0.1:${p} --max-clients 1000 --max-connections-for-client 512 --client-socket-sndbuf 0
 Restart=on-failure
 RestartPreventExitStatus=23
 LimitNPROC=10000
@@ -157,7 +162,7 @@ chmod +x /usr/local/bin/online-check.sh
 printf '[Unit]\nDescription=Online Check\n[Service]\nType=simple\nExecStart=/usr/local/bin/online-check.sh\n' > /etc/systemd/system/online-check.service
 printf '[Unit]\nDescription=Online Check Timer\n[Timer]\nOnBootSec=10\nOnUnitActiveSec=10\n[Install]\nWantedBy=timers.target\n' > /etc/systemd/system/online-check.timer
 systemctl enable --now online-check.timer 2>/dev/null
-wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/sysinfo.sh -O /usr/local/bin/sysinfo.sh
+wget -q https://raw.githubusercontent.com/EkromSSH/UDP-HYSTERIA/main/scripts/sysinfo.sh -O /usr/local/bin/sysinfo.sh
 chmod +x /usr/local/bin/sysinfo.sh
 cat > /etc/systemd/system/sysinfo.service << 'EOF'
 [Unit]
@@ -176,7 +181,7 @@ EOF
 systemctl daemon-reload 2>/dev/null
 systemctl enable --now sysinfo 2>/dev/null
 
-wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/vnstat-traffic.sh -O /usr/local/bin/vnstat-traffic.sh
+wget -q https://raw.githubusercontent.com/EkromSSH/UDP-HYSTERIA/main/scripts/vnstat-traffic.sh -O /usr/local/bin/vnstat-traffic.sh
 chmod +x /usr/local/bin/vnstat-traffic.sh
 cat > /etc/systemd/system/vnstat-traffic.service << 'EOF'
 [Unit]
@@ -195,12 +200,12 @@ WantedBy=multi-user.target
 EOF
 systemctl daemon-reload 2>/dev/null
 systemctl enable --now vnstat-traffic 2>/dev/null
-wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/web/index.html -O /home/vps/public_html/server/index.html
+wget -q https://raw.githubusercontent.com/EkromSSH/UDP-HYSTERIA/main/web/index.html -O /home/vps/public_html/server/index.html
 cat > /etc/nginx/conf.d/dashboard.conf << 'E8'
 server {listen 82;root /home/vps/public_html;index index.html;location /server/{alias /home/vps/public_html/server/;}}
 E8
 nginx -t 2>/dev/null && systemctl restart nginx 2>/dev/null
-wget -q https://raw.githubusercontent.com/EkromSSH/hysteria-install/main/scripts/menu.py -O /opt/hysteria/menu.py 2>/dev/null || true
+wget -q https://raw.githubusercontent.com/EkromSSH/UDP-HYSTERIA/main/scripts/menu.py -O /opt/hysteria/menu.py 2>/dev/null || true
 chmod +x /opt/hysteria/menu.py 2>/dev/null
 printf '#!/bin/bash\npython3 /opt/hysteria/menu.py\n' > /usr/local/bin/showon && chmod +x /usr/local/bin/showon
 echo ""; echo -e "\033[1;36m═══════════════════════════════════════\033[0m"
